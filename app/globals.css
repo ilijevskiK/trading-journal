@@ -1,0 +1,65 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Fraunces", serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: #12151b;
+  color: #ece9e1;
+  font-family: var(--font-body);
+}
+
+::selection {
+  background: #c9a24b;
+  color: #12151b;
+}
+
+/* thin custom scrollbar to match the ledger aesthetic */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #12151b;
+}
+::-webkit-scrollbar-thumb {
+  background: #2c313f;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #383f52;
+}
+
+.tick-underline {
+  text-decoration: none;
+  border-bottom: 1px dashed #2c313f;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+/* subtle ledger rule background used on section headers */
+.rule-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    #2c313f 10%,
+    #2c313f 90%,
+    transparent
+  );
+}
