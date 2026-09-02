@@ -38,32 +38,32 @@ export default function TradeRow({ trade, expanded, onToggle }) {
   const closed = isFullyClosed(trade);
   const linkedStrategy = getStrategy(trade.strategyId);
 
-  function handleAddExit(e) {
+  async function handleAddExit(e) {
     e.preventDefault();
     const price = parseFloat(exitPrice);
     const shares = parseFloat(exitShares);
     if (!price || !shares || shares <= 0 || shares > remaining) return;
-    addExit(trade.id, { date: exitDate, price, shares, reason: exitReason });
+    await addExit(trade.id, { date: exitDate, price, shares, reason: exitReason });
     if (shares >= remaining) {
-      updateTrade(trade.id, { status: "closed" });
+      await updateTrade(trade.id, { status: "closed" });
     }
     setExitPrice("");
     setExitShares("");
   }
 
-  function handleAddTag(e) {
+  async function handleAddTag(e) {
     e.preventDefault();
     const value = newTag.trim();
     if (!value) return;
     const existing = trade.tags || [];
     if (!existing.includes(value)) {
-      updateTrade(trade.id, { tags: [...existing, value] });
+      await updateTrade(trade.id, { tags: [...existing, value] });
     }
     setNewTag("");
   }
 
-  function handleRemoveTag(tag) {
-    updateTrade(trade.id, { tags: (trade.tags || []).filter((t) => t !== tag) });
+  async function handleRemoveTag(tag) {
+    await updateTrade(trade.id, { tags: (trade.tags || []).filter((t) => t !== tag) });
   }
 
   return (

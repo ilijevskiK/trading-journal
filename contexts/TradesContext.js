@@ -1,22 +1,20 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-
-const TRADES_KEY = "tj_trades_v1";
-const SETTINGS_KEY = "tj_settings_v1";
-const DEPOSITS_KEY = "tj_deposits_v1";
-
-const DEFAULT_SETTINGS = {
-  accountSize: 10000,
-  defaultRiskPercent: 1.5,
-  maxPositionPercentAllowed: 20,
-  twelveDataApiKey: "",
-  finnhubApiKey: "",
-};
-
-function uid() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
+import { DEFAULT_SETTINGS } from "@/lib/settingsDefaults";
+import {
+  getInitialDataAction,
+  addTradeAction,
+  updateTradeAction,
+  deleteTradeAction,
+  addExitAction,
+  removeExitAction,
+  updateSettingsAction,
+  addDepositAction,
+  removeDepositAction,
+  resetAllAction,
+  importDataAction,
+} from "./tradesActions";
 
 const TradesContext = createContext(null);
 
@@ -27,89 +25,55 @@ export function TradesProvider({ children }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    try {
-      const rawTrades = window.localStorage.getItem(TRADES_KEY);
-      const rawSettings = window.localStorage.getItem(SETTINGS_KEY);
-      const rawDeposits = window.localStorage.getItem(DEPOSITS_KEY);
-      if (rawTrades) setTrades(JSON.parse(rawTrades));
-      if (rawSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) });
-      if (rawDeposits) setDeposits(JSON.parse(rawDeposits));
-    } catch (e) {
-      console.error("Failed to load journal data from localStorage", e);
-    }
-    setLoaded(true);
+    getInitialDataAction()
+      .then(({ trades, settings, deposits }) => {
+        setTrades(trades);
+        setSettings(settings || DEFAULT_SETTINGS);
+        setDeposits(deposits);
+      })
+      .catch((e) => {
+        console.error("Failed to load journal data", e);
+      })
+      .finally(() => setLoaded(true));
   }, []);
 
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      window.localStorage.setItem(TRADES_KEY, JSON.stringify(trades));
-    } catch (e) {
-      console.error("Failed to save trades", e);
-    }
-  }, [trades, loaded]);
-
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch (e) {
-      console.error("Failed to save settings", e);
-    }
-  }, [settings, loaded]);
-
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      window.localStorage.setItem(DEPOSITS_KEY, JSON.stringify(deposits));
-    } catch (e) {
-      console.error("Failed to save deposits", e);
-    }
-  }, [deposits, loaded]);
-
-  const addTrade = useCallback((trade) => {
-    const newTrade = {
-      id: uid(),
-      exits: [],
-      tags: [],
-      premortem: "",
-      strategyId: null,
-      ...trade,
-    };
+  const addTrade = useCallback(async (trade) => {
+    const newTrade = await addTradeAction(trade);
     setTrades((prev) => [newTrade, ...prev]);
     return newTrade.id;
   }, []);
 
-  const updateTrade = useCallback((id, patch) => {
-    setTrades((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const updateTrade = useCallback(async (id, patch) => {
+    const updated = await updateTradeAction(id, patch);
+    if (updated) setTrades((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    return updated;
   }, []);
 
-  const deleteTrade = useCallback((id) => {
+  const deleteTrade = useCallback(async (id) => {
+    await deleteTradeAction(id);
     setTrades((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const addExit = useCallback((id, exit) => {
+  const addExit = useCallback(async (id, exit) => {
+    const newExit = await addExitAction(id, exit);
+    setTrades((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, exits: [...(t.exits || []), newExit] } : t))
+    );
+  }, []);
+
+  const removeExit = useCallback(async (tradeId, exitId) => {
+    await removeExitAction(tradeId, exitId);
     setTrades((prev) =>
       prev.map((t) =>
-        t.id === id
-          ? { ...t, exits: [...(t.exits || []), { id: uid(), ...exit }] }
-          : t
+        t.id === tradeId ? { ...t, exits: (t.exits || []).filter((e) => e.id !== exitId) } : t
       )
     );
   }, []);
 
-  const removeExit = useCallback((tradeId, exitId) => {
-    setTrades((prev) =>
-      prev.map((t) =>
-        t.id === tradeId
-          ? { ...t, exits: (t.exits || []).filter((e) => e.id !== exitId) }
-          : t
-      )
-    );
-  }, []);
-
-  const updateSettings = useCallback((patch) => {
-    setSettings((prev) => ({ ...prev, ...patch }));
+  const updateSettings = useCallback(async (patch) => {
+    const updated = await updateSettingsAction(patch);
+    if (updated) setSettings(updated);
+    return updated;
   }, []);
 
   // Deposits are kept separate from `settings.accountSize` — that field
@@ -117,44 +81,36 @@ export function TradesProvider({ children }) {
   // record, so the equity curve can show *when* capital was added instead
   // of just silently inflating a single number (see lib/calc.js's
   // currentAccountSize/computeEquityCurve for where these get combined).
-  const addDeposit = useCallback((deposit) => {
-    const newDeposit = { id: uid(), ...deposit };
+  const addDeposit = useCallback(async (deposit) => {
+    const newDeposit = await addDepositAction(deposit);
     setDeposits((prev) => [newDeposit, ...prev]);
     return newDeposit.id;
   }, []);
 
-  const removeDeposit = useCallback((id) => {
+  const removeDeposit = useCallback(async (id) => {
+    await removeDepositAction(id);
     setDeposits((prev) => prev.filter((d) => d.id !== id));
   }, []);
 
-  const resetAll = useCallback(() => {
+  const resetAll = useCallback(async () => {
+    const { settings: resetSettings } = await resetAllAction();
     setTrades([]);
-    setSettings(DEFAULT_SETTINGS);
     setDeposits([]);
+    setSettings(resetSettings);
   }, []);
 
-  const importData = useCallback((data) => {
-    if (!data || !Array.isArray(data.trades)) {
-      throw new Error("File doesn't look like a trading journal export.");
+  // No id-based dedup — Postgres assigns its own ids, so the old
+  // "skip trades whose id already exists" check no longer means anything.
+  // Running the same import twice will duplicate everything; see
+  // app/settings/page.js for the confirm-before-import UI safety net.
+  const importData = useCallback(async (data) => {
+    const result = await importDataAction(data);
+    setTrades((prev) => [...result.trades, ...prev]);
+    if (result.deposits.length > 0) {
+      setDeposits((prev) => [...result.deposits, ...prev]);
     }
-    let addedCount = 0;
-    setTrades((prev) => {
-      const existingIds = new Set(prev.map((t) => t.id));
-      const incoming = data.trades.filter((t) => t && t.id && !existingIds.has(t.id));
-      addedCount = incoming.length;
-      return [...incoming, ...prev];
-    });
-    if (Array.isArray(data.deposits)) {
-      setDeposits((prev) => {
-        const existingIds = new Set(prev.map((d) => d.id));
-        const incoming = data.deposits.filter((d) => d && d.id && !existingIds.has(d.id));
-        return [...incoming, ...prev];
-      });
-    }
-    if (data.settings && typeof data.settings === "object") {
-      setSettings((prev) => ({ ...prev, ...data.settings }));
-    }
-    return addedCount;
+    if (result.settings) setSettings(result.settings);
+    return result.trades.length;
   }, []);
 
   return (

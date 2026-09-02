@@ -30,6 +30,7 @@ export default function SettingsPage() {
   }, [loaded]);
   const [saved, setSaved] = useState(false);
   const [importMessage, setImportMessage] = useState(null);
+  const [importing, setImporting] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showFinnhubKey, setShowFinnhubKey] = useState(false);
   const fileInputRef = useRef(null);
@@ -80,24 +81,32 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (
+      !confirm(
+        "This adds every trade in the file as new entries — importing the same file twice will create duplicates. Continue?"
+      )
+    ) {
+      e.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      setImporting(true);
       try {
         const data = JSON.parse(reader.result);
-        const addedCount = importData(data);
+        const addedCount = await importData(data);
         setImportMessage({
           type: "success",
-          text: `Imported ${addedCount} new trade${addedCount === 1 ? "" : "s"}${
-            addedCount < (data.trades?.length || 0)
-              ? ` (${data.trades.length - addedCount} already present, skipped)`
-              : ""
-          }.`,
+          text: `Imported ${addedCount} trade${addedCount === 1 ? "" : "s"}.`,
         });
       } catch (err) {
         setImportMessage({
           type: "error",
           text: `Import failed: ${err.message}`,
         });
+      } finally {
+        setImporting(false);
       }
     };
     reader.readAsText(file);
@@ -113,11 +122,21 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (
+      !confirm(
+        "This adds every trade found in the CSV as new entries — importing the same file twice will create duplicates. Continue?"
+      )
+    ) {
+      e.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      setImporting(true);
       try {
         const { trades: parsedTrades, warnings } = parseTrading212Csv(reader.result);
-        const addedCount = importData({ trades: parsedTrades });
+        const addedCount = await importData({ trades: parsedTrades });
         const warningText =
           warnings.length > 0
             ? ` ${warnings.length} row${warnings.length === 1 ? "" : "s"} couldn't be matched or parsed and ${
@@ -131,6 +150,8 @@ export default function SettingsPage() {
         });
       } catch (err) {
         setImportMessage({ type: "error", text: `CSV import failed: ${err.message}` });
+      } finally {
+        setImporting(false);
       }
     };
     reader.readAsText(file);
@@ -341,9 +362,9 @@ export default function SettingsPage() {
       <div className="space-y-3">
         <h2 className="text-sm text-parchment">Data</h2>
         <p className="text-xs text-parchment-faint">
-          All data lives in this browser&apos;s local storage — nothing is sent
-          anywhere. Export a backup before clearing browser data or switching
-          devices.
+          Your journal lives in your own account&apos;s database — nothing is
+          shared with other users. Export a backup periodically anyway, in
+          case you ever need to move it elsewhere.
         </p>
         <div className="flex flex-wrap gap-3">
           <button
@@ -354,9 +375,10 @@ export default function SettingsPage() {
           </button>
           <button
             onClick={handleImportClick}
-            className="text-xs border border-line rounded-md px-3 py-2 text-parchment-dim hover:text-parchment hover:border-gold-dim"
+            disabled={importing}
+            className="text-xs border border-line rounded-md px-3 py-2 text-parchment-dim hover:text-parchment hover:border-gold-dim disabled:opacity-50 disabled:pointer-events-none"
           >
-            Import journal from JSON
+            {importing ? "Importing…" : "Import journal from JSON"}
           </button>
           <input
             ref={fileInputRef}
@@ -367,9 +389,10 @@ export default function SettingsPage() {
           />
           <button
             onClick={handleImportCsvClick}
-            className="text-xs border border-line rounded-md px-3 py-2 text-parchment-dim hover:text-parchment hover:border-gold-dim"
+            disabled={importing}
+            className="text-xs border border-line rounded-md px-3 py-2 text-parchment-dim hover:text-parchment hover:border-gold-dim disabled:opacity-50 disabled:pointer-events-none"
           >
-            Import from Trading212 CSV
+            {importing ? "Importing…" : "Import from Trading212 CSV"}
           </button>
           <input
             ref={csvInputRef}
@@ -423,10 +446,10 @@ export default function SettingsPage() {
           </div>
         )}
         <p className="text-xs text-parchment-faint">
-          Import adds trades from the file that aren&apos;t already in this
-          browser (matched by trade ID) — it won&apos;t create duplicates or
-          remove anything currently here. Settings from the file overwrite
-          current settings.
+          Each import adds every trade in the file as new entries — running
+          the same import twice will create duplicates, so only import a
+          given file once. Nothing currently here is ever removed. Settings
+          from the file overwrite current settings.
         </p>
         <p className="text-xs text-parchment-faint">
           Trading212 CSV import: export your <strong>Orders</strong> history

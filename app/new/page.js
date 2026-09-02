@@ -139,7 +139,7 @@ function NewTradeContent() {
     setSubmitting(false);
     if (!tickerValid) return;
 
-    addTrade({
+    await addTrade({
       ticker: form.ticker.trim().toUpperCase(),
       thesis: form.thesis.trim(),
       understoodBusiness: form.understoodBusiness,

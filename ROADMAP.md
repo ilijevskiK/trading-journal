@@ -144,19 +144,42 @@ straight to Postgres `user_settings` — `/settings` still reads/writes
 there yet, and editing them in Settings won't touch Postgres either.
 Resolves once 3.4 swaps `TradesContext` over.
 
-### Phase 3.4 — Server-backed data layer — not started
-`contexts/TradesContext.js` already exposes one clean interface (`addTrade`,
-`updateTrade`, `deleteTrade`, `addExit`, `removeExit`, `updateSettings`,
-`addDeposit`, `removeDeposit`, `resetAll`, `importData`). Swap what's
-*inside* those functions — from `localStorage.setItem` to authenticated API
-route calls against the Phase 3.2 tables — without changing the function
-signatures, so every consumer (`TradeRow`, `app/journal`, `app/page.js`,
-`lib/calc.js`, etc.) needs zero changes.
+### Phase 3.4 — Server-backed data layer — ✅ done, verified live
+`contexts/TradesContext.js`'s functions now call `contexts/tradesActions.js`
+("use server") → `lib/tradesDb.js` (pure, pool-first-arg query/mapping
+functions, unit tested) against Postgres, instead of `localStorage`. Three
+consumers needed small `async`/`await` touch-ups (`app/new/page.js`,
+`components/TradeRow.js`, `app/settings/page.js`) — the roadmap's original
+"zero changes" framing wasn't quite literal once persistence became async.
 
-### Phase 3.5 — Migration path for existing local data — not started
-No separate migration script: the JSON export/import already in Settings
-becomes the bridge. Export the current localStorage journal, sign in,
-"Import journal from JSON" against the new API-backed `importData`.
+Verified live: logging a new trade, Trading212 CSV import (confirmed
+trades landed in Neon's `trades`/`exits` tables), Journal/Dashboard/
+Breakdowns all rendering correctly from Postgres, editing Settings, adding
+a deposit — each round-tripped and persisted across a reload.
+`resetAll`/JSON-reimport-dedup/CSV-mid-import-rollback are code-reviewed
+but not live-tested (the first is destructive against real data, not
+worth risking to test manually).
+
+Real bugs hit and fixed during this rollout, worth remembering:
+- Ran `rm -rf .next` while the dev server was serving an active browser
+  session — the browser's already-loaded JS referenced chunk hashes that
+  no longer existed, surfacing as a client-side-navigation 404. Fixed by a
+  hard reload. Lesson: don't clear `.next` while a dev server has an open
+  browser tab attached.
+- Separately, a dev server can get into a bad Fast-Refresh state after a
+  lot of edits to files used by the root layout (`TradesContext.js` and
+  everything it pulls in) — a hard *browser* reload doesn't fix a stale
+  *server* compile. Fixed by fully restarting `npm run dev`.
+
+### Phase 3.5 — Migration path for existing local data — done ad hoc, not formalized
+The user's own pre-migration `localStorage` data (real trade history) was
+recovered with a one-off browser-console script reading `tj_trades_v1`/
+`tj_deposits_v1`/`tj_settings_v1` directly and downloading them as a JSON
+file, then imported via Settings' "Import journal from JSON" — proving the
+JSON-export-then-import bridge actually works end-to-end against the new
+Postgres-backed `importData`. Not formalized into a documented step
+anywhere (e.g. README) — worth doing if this app ever gets a second real
+user who needs the same recovery.
 
 ### Phase 3.6 — Security hardening — not started
 - Encrypt `twelve_data_api_key`/`finnhub_api_key` at rest (AES via a
