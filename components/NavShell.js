@@ -61,7 +61,7 @@ export default function NavShell({ children }) {
   // The sign-in page renders its own full-page layout and has no nav to
   // show — an unauthenticated visitor shouldn't see links to pages they
   // can't reach anyway.
-  if (pathname === "/signin") return children;
+  if (pathname === "/signin" || pathname === "/onboarding") return children;
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-ink text-parchment font-body">

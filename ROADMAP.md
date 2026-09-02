@@ -64,7 +64,15 @@ either). Everything else in this phase depends on it, so it goes first.
   small `/admin` page to manage it is a later nice-to-have, not required for
   launch at this scale.
 
-### Phase 3.2 — Database schema — not started
+### Phase 3.2 — Database schema — ✅ done
+`db/0002_app_tables.sql` ran against Neon — `user_settings`, `trades`,
+`exits`, `deposits` all exist alongside the Phase 3.1 auth tables. IDs are
+`SERIAL` integers (matching the adapter's own convention), every FK is
+`ON DELETE CASCADE`. No app code changes yet — `TradesContext` keeps using
+`localStorage` until Phase 3.4. One thing flagged for that phase:
+`node-postgres` returns `NUMERIC` columns as strings, so the future query
+layer will need `parseFloat(...)` before handing rows to `lib/calc.js`.
+
 Postgres (Neon or Vercel Postgres). Auth.js's adapter owns `users`,
 `accounts`, `sessions`, `verification_tokens`. App-owned tables on top:
 
@@ -99,13 +107,42 @@ to justify the join. Every query is scoped by `user_id` from the session;
 Postgres row-level security policies are a good hardening add later, not
 required to launch at this scale.
 
-### Phase 3.3 — Onboarding gate — not started
-After first sign-in, middleware checks `user_settings.onboarding_completed`.
-If false, every route redirects to `/onboarding` — a locked-down version of
-today's Settings form asking specifically for the **Twelve Data key** (plus
-starting account size / risk defaults). Saving it sets
-`onboarding_completed = true` and unlocks the rest of the app. Finnhub stays
-optional, same as today — it only adds live watchlist ticks.
+### Phase 3.3 — Onboarding gate — ✅ done, verified end-to-end
+After first sign-in, middleware redirects every route to `/onboarding`
+until `user_settings.onboarding_completed` is true — a locked-down version
+of Settings asking for starting account size / risk defaults and the
+**Twelve Data key** (required; Finnhub stays optional, same as today).
+Verified live: an existing pre-Phase-3.3 session correctly got redirected
+to onboarding (its token predates the flag); submitting without a Twelve
+Data key showed the "enter your key" error and stayed put; submitting with
+one landed on `/` and stuck across a reload with no re-login needed.
+
+**Bug caught during that same testing, fixed:** `completeOnboarding` in
+`app/onboarding/actions.js` originally ran a plain `UPDATE ... WHERE
+user_id = $1`, assuming `ensureUserSettingsRow` (in `auth.js`'s `jwt`
+callback, `trigger === "signIn"` branch) had already created the row. A
+session that predates this table having a row for its user never
+re-triggers `"signIn"` — so the `UPDATE` silently affected zero rows (no
+error thrown) while `unstable_update()` still marked the session
+"onboarded" regardless, making it *look* successful with nothing actually
+in Postgres. Fixed by changing it to `INSERT ... ON CONFLICT (user_id) DO
+UPDATE`, so the save is self-sufficient regardless of session history.
+
+Key wiring detail worth remembering if this ever needs touching again:
+`auth.config.js` (edge-safe) owns both the `session` callback (re-adds
+`id`/`onboardingCompleted` onto `session.user`, since Auth.js's default
+session shape strips both) and the `authorized` callback's redirect —
+`middleware.js` builds its own separate `NextAuth(authConfig).auth`
+instance, so anything defined only in `auth.js` never reaches it.
+`unstable_update()` (from `auth.js`) rewrites the session cookie
+server-side right after the onboarding write, with no `SessionProvider`
+needed.
+
+**Known temporary gap:** the Twelve Data/Finnhub keys entered here go
+straight to Postgres `user_settings` — `/settings` still reads/writes
+`localStorage` via `TradesContext` until Phase 3.4, so they won't show up
+there yet, and editing them in Settings won't touch Postgres either.
+Resolves once 3.4 swaps `TradesContext` over.
 
 ### Phase 3.4 — Server-backed data layer — not started
 `contexts/TradesContext.js` already exposes one clean interface (`addTrade`,
