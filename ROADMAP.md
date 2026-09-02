@@ -33,13 +33,29 @@ below is made — multi-device sync matters, and the app is expected to have
 more than one real user (not single-user-forever, but not mass-scale
 either). Everything else in this phase depends on it, so it goes first.
 
-### Phase 3.1 — Auth — not started
-- Auth.js (NextAuth v5) with a Postgres adapter.
-- Sign-in via Google OAuth and/or email magic link — no passwords, so no
-  hashing/reset-flow surface to build or secure. There's no separate signup
-  form: the first successful sign-in creates the account via the adapter.
-- Middleware protects every route except `/signin` and the auth callback
-  routes.
+### Phase 3.1 — Auth — ✅ done, verified end-to-end
+- Auth.js (NextAuth v5) with a Postgres adapter (Neon, created directly at
+  neon.tech to avoid a card on file) — `auth.config.js` (edge-safe) +
+  `auth.js` (full config), `middleware.js`, `app/api/auth/[...nextauth]/route.js`.
+- Sign-in via email magic link only for this pass (Google OAuth deferred,
+  trivial to add later given the split-config pattern) — `app/signin/page.js`
+  + `app/signin/actions.js`. No separate signup form: the first successful
+  sign-in creates the account via the adapter.
+- Middleware protects every route except `/signin` — confirmed live: a real
+  sign-in via Resend's magic link successfully created a session and landed
+  back on `/`.
+- Allowlist gate: `allowed_emails` table + `lib/allowlist.js`
+  (`isEmailAllowed`, unit tested), checked in `auth.js`'s `signIn` callback —
+  confirmed the allowlisted email passed through to Resend.
+- `db/0001_init_auth.sql` has the adapter schema + `allowed_emails` table, run
+  once against Neon via its SQL editor.
+- `AUTH_EMAIL_FROM` is still Resend's sandbox sender (`onboarding@resend.dev`),
+  which only delivers to the Resend account's own email — fine for solo
+  testing, but a custom verified domain is required before inviting anyone
+  else to sign in.
+- Note for later: a Chrome-extension-only "Could not establish connection"
+  console error showed up during testing — confirmed unrelated to the app
+  (extension messaging noise, appears on any page).
 - **Access control — allowlist.** An `allowed_emails` table (`email`,
   `added_at`) checked in Auth.js's `signIn` callback: anyone not on the list
   is rejected before an account is ever created — no pending/approval

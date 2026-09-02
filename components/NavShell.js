@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { signOut } from "next-auth/react";
 import {
   DashboardIcon,
   JournalIcon,
@@ -56,6 +57,11 @@ export default function NavShell({ children }) {
       return next;
     });
   }
+
+  // The sign-in page renders its own full-page layout and has no nav to
+  // show — an unauthenticated visitor shouldn't see links to pages they
+  // can't reach anyway.
+  if (pathname === "/signin") return children;
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-ink text-parchment font-body">
@@ -157,6 +163,12 @@ export default function NavShell({ children }) {
             Every position sized before it&apos;s entered.
             <br />
             Every exit decided before it&apos;s felt.
+            <button
+              onClick={() => signOut()}
+              className="block mt-3 text-parchment-faint hover:text-loss-bright"
+            >
+              Sign out
+            </button>
           </div>
         )}
       </aside>
