@@ -10,6 +10,7 @@ import {
   IndicatorsIcon,
   BooksIcon,
   StrategiesIcon,
+  Sp500Icon,
   WatchlistIcon,
   NewTradeIcon,
   BreakdownsIcon,
@@ -25,9 +26,10 @@ const NAV_ITEMS = [
   { href: "/indicators", label: "Indicators", mark: "05", Icon: IndicatorsIcon },
   { href: "/books", label: "Books", mark: "06", Icon: BooksIcon },
   { href: "/strategies", label: "Strategies", mark: "07", Icon: StrategiesIcon },
-  { href: "/watchlist", label: "Watchlist", mark: "08", Icon: WatchlistIcon },
-  { href: "/new", label: "New Trade", mark: "09", Icon: NewTradeIcon },
-  { href: "/settings", label: "Settings", mark: "10", Icon: SettingsIcon },
+  { href: "/sp500", label: "S&P 500", mark: "08", Icon: Sp500Icon },
+  { href: "/watchlist", label: "Watchlist", mark: "09", Icon: WatchlistIcon },
+  { href: "/new", label: "New Trade", mark: "10", Icon: NewTradeIcon },
+  { href: "/settings", label: "Settings", mark: "11", Icon: SettingsIcon },
 ];
 
 const COLLAPSED_KEY = "tj_sidebar_collapsed_v1";
@@ -122,6 +124,7 @@ export default function NavShell({ children }) {
               <div className="text-parchment-faint text-xs mt-1 tracking-wide uppercase">
                 Trading Journal
               </div>
+              <div className="text-parchment-faint text-[10px] mt-1 font-mono">v1.1.0</div>
             </>
           )}
         </div>
