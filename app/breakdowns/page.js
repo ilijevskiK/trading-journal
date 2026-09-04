@@ -7,8 +7,10 @@ import {
   statsByDayOfWeek,
   statsByEmotion,
   statsByStrategy,
+  holdTimeByOutcome,
   formatCurrency,
   formatPercent,
+  round,
 } from "@/lib/calc";
 import { getStrategy } from "@/content/strategies";
 
@@ -25,6 +27,7 @@ export default function BreakdownsPage() {
       label: row.key ? getStrategy(row.key)?.title || row.key : "No strategy tagged",
     }));
   }, [trades]);
+  const holdTime = useMemo(() => holdTimeByOutcome(trades), [trades]);
 
   if (!loaded) return null;
 
@@ -36,7 +39,7 @@ export default function BreakdownsPage() {
       <div className="flex items-baseline justify-between">
         <h1 className="font-display text-3xl text-parchment">Breakdowns</h1>
         <span className="font-mono text-xs text-parchment-faint">
-          P&amp;L by symbol, weekday, emotion, strategy
+          P&amp;L by symbol, weekday, emotion, strategy — plus hold time
         </span>
       </div>
       <div className="rule-divider mt-4 mb-8" />
@@ -47,11 +50,60 @@ export default function BreakdownsPage() {
         </div>
       ) : (
         <div className="space-y-8">
+          <HoldTimeSection holdTime={holdTime} />
           <BreakdownSection title="By symbol" rows={bySymbol} />
           <BreakdownSection title="By day of week closed" rows={byDayOfWeek} />
           <BreakdownSection title="By emotion at entry" rows={byEmotion} />
           <BreakdownSection title="By strategy" rows={byStrategy} />
         </div>
+      )}
+    </div>
+  );
+}
+
+// A direct check for the disposition effect (holding losers longer, hoping
+// they recover, while cutting winners short) rather than a feeling — see
+// lib/calc.js's holdTimeByOutcome.
+function HoldTimeSection({ holdTime }) {
+  const { winners, losers } = holdTime;
+  const haveBoth = winners.avgDays != null && losers.avgDays != null;
+
+  return (
+    <div className="bg-surface border border-line rounded-lg p-5">
+      <h2 className="text-xs uppercase tracking-wide text-parchment-faint mb-3">
+        Hold time: winners vs. losers
+      </h2>
+      {winners.count === 0 && losers.count === 0 ? (
+        <p className="text-sm text-parchment-faint">Not enough closed trades yet.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-parchment-faint mb-1">Winners ({winners.count})</p>
+              <p className="font-mono text-lg text-gain-bright">
+                {winners.avgDays != null ? `${winners.avgDays} days avg` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-parchment-faint mb-1">Losers ({losers.count})</p>
+              <p className="font-mono text-lg text-loss-bright">
+                {losers.avgDays != null ? `${losers.avgDays} days avg` : "—"}
+              </p>
+            </div>
+          </div>
+          {haveBoth && losers.avgDays > winners.avgDays && (
+            <p className="text-xs text-warn mt-3">
+              You&apos;re holding losers {round(losers.avgDays - winners.avgDays, 1)} days longer than
+              winners on average — a classic sign of cutting winners short and hoping losers recover.
+            </p>
+          )}
+          {haveBoth && winners.avgDays >= losers.avgDays && (
+            <p className="text-xs text-gain-bright mt-3">
+              You&apos;re not holding losers longer than winners on average — good discipline on cutting
+              them loose.
+            </p>
+          )}
+        </>
       )}
     </div>
   );
