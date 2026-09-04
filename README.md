@@ -20,39 +20,58 @@ logs your trades and turns those specific habits into visible numbers.
 - **Dashboard analytics** — win rate, average R-multiple, expectancy,
   equity curve, R-multiple distribution, and a "trades to review" list that
   surfaces exactly which rule you broke on your worst trades.
-- **Local-only data** — everything is stored in your browser's
-  localStorage. Nothing leaves your machine. Export/reset available in
-  Settings.
+- **Your own account** — sign in via email magic link (an allowlist gates
+  who can create one). Data is stored per-account in Postgres, not the
+  browser — see `ROADMAP.md` Phase 3 for how this replaced the original
+  `localStorage`-only design. API keys are encrypted at rest.
 
 ## Getting started
 
-```bash
-npm install
-npm run dev
-```
-
-Then open http://localhost:3000.
+1. Copy `.env.example` to `.env.local` and fill in every value — you'll
+   need a Postgres database (Neon works well, free tier, no card
+   required) and a Resend account (for magic-link sign-in emails).
+   `AUTH_SECRET`/`SETTINGS_ENCRYPTION_KEY` are just generated secrets
+   (`npx auth secret` / `openssl rand -base64 32`).
+2. Run `db/0001_init_auth.sql`, then `db/0002_app_tables.sql` (in that
+   order — the second references tables the first creates) against your
+   Postgres database, e.g. via Neon's SQL editor.
+3. Seed your own email into the `allowed_emails` table — nobody can sign
+   in otherwise (see the commented `INSERT` at the bottom of
+   `db/0001_init_auth.sql`).
+4. ```bash
+   npm install
+   npm run dev
+   ```
+5. Open http://localhost:3000, sign in, and complete the one-time
+   onboarding step (it asks for a Twelve Data API key — free tier, see
+   Settings for the signup link).
 
 ## Deploying
 
 This is a standard Next.js app — it deploys as-is to Vercel, Netlify, or any
-Node host:
+Node host, but **isn't zero-configuration** anymore: every var in
+`.env.example` needs to be set in your host's environment, pointing at a
+real (already-migrated) Postgres database.
 
 ```bash
 npm run build
 npm run start
 ```
 
-Or push it to a GitHub repo and import it in Vercel with zero configuration.
-
 ## Data model
 
-Trades are stored as plain objects with fields like `ticker`, `thesis`,
-`entryPrice`, `stopPrice`, `shares`, `exits` (an array of partial exits), and
-a few discipline flags (`understoodBusiness`, `stopMovedAgainstPlan`). See
-`lib/calc.js` for all the derived math (P&L, R-multiples, discipline scoring,
-equity curve) — it's plain, commented JS if you want to tweak the rules to
-match your own system.
+Trades/exits/deposits/settings live in Postgres (`db/0002_app_tables.sql`
+has the exact schema), scoped per user via the session from Auth.js.
+`lib/tradesDb.js` is the JS↔SQL boundary — mapping snake_case columns to
+the camelCase shape the rest of the app uses (`ticker`, `thesis`,
+`entryPrice`, `stopPrice`, `shares`, `exits`, discipline flags like
+`understoodBusiness`/`stopMovedAgainstPlan`), and transparently
+encrypting/decrypting the two API-key fields (`lib/crypto.js`). Everything
+downstream — `contexts/TradesContext.js` and every page/component — still
+works with the same plain JS objects as before; only the persistence layer
+changed. See `lib/calc.js` for all the derived math (P&L, R-multiples,
+discipline scoring, equity curve) — it's plain, commented JS if you want to
+tweak the rules to match your own system.
 
 ## Recovering data logged before accounts existed
 

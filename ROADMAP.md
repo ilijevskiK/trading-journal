@@ -206,10 +206,26 @@ doesn't go through `lib/tradesDb.js` at all).
 Auth.js handles CSRF/session security by default; Vercel gives HTTPS by
 default — no further action needed there.
 
-### Phase 3.7 — Cleanup — not started
-Remove the old `localStorage` read/write effects once the DB-backed flow is
-verified in production; update `README.md`/`PROJECT_CONTEXT.md` to describe
-the new architecture.
+### Phase 3.7 — Cleanup — ✅ done
+The old `localStorage` read/write effects were already removed as part of
+Phase 3.4 itself (not left until this phase — the swap was a real
+replacement, not a staged deprecation). This phase was `README.md`/
+`PROJECT_CONTEXT.md` documentation only:
+- `README.md`: replaced the "local-only data" feature bullet, rewrote
+  "Getting started" to cover `.env.local` setup + running the two `db/`
+  migrations + seeding `allowed_emails`, corrected "Deploying" (no longer
+  zero-config), and rewrote "Data model" to describe the Postgres schema
+  and `lib/tradesDb.js`'s role.
+- `PROJECT_CONTEXT.md`: corrected the "local-only" design-decision bullet,
+  replaced the stale "Possible next steps" list (CSV import/tags/live
+  P&L/pre-mortem — all already shipped) with a pointer to `ROADMAP.md`,
+  and removed a leftover early-brainstorm block (an unbuilt trade schema
+  with `side`/`fees`/`screenshots` fields, and "Finnhub chosen over Twelve
+  Data" reasoning that contradicts the actual implementation — Twelve Data
+  is primary, Finnhub is optional) that predated and was superseded by
+  what was actually built, and was actively misleading to leave in place.
+
+### Still deferred, unchanged
 
 ### Still deferred, unchanged
 - **PDF export** — currently only JSON export/import and CSV import exist;

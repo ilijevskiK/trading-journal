@@ -43,9 +43,11 @@ assistant (or future-you) has the "why" behind the code, not just the code.
 - **Scale-out exit model** (thirds): sell ~1/3 at first target, move stop to
   breakeven, sell ~1/3 at second target or on technical weakness, trail the
   final third. Directly addresses "not taking profit at highs."
-- **Local-only data** (localStorage) — no backend, no accounts, nothing
-  leaves the browser. Deliberate simplicity; export/reset available in
-  Settings.
+- **Real accounts, Postgres-backed** (originally: local-only `localStorage`,
+  no backend, no accounts — see `ROADMAP.md` Phase 3 for why and how this
+  changed). Sign-in is email-magic-link only, gated by an allowlist; each
+  user's trades/settings/deposits live in their own Postgres rows. Export/
+  reset still available in Settings.
 
 ## Worked example used to build/validate the exit-strategy logic
 
@@ -66,16 +68,13 @@ Trade: IREN, entry $41.42, 61.85 shares, July 13 2026.
   oversized position — trimming to get under the size limit is a separate
   decision from setting price targets.
 
-## Possible next steps (not yet built)
+## Status
 
-- CSV import for bulk-loading historical trades (March–July) instead of
-  entering them one by one.
-- Per-ticker notes/tags to spot sector-level patterns (e.g. "how do I do on
-  momentum/AI names vs. established large caps").
-- Optional current-price field on open trades to show unrealized P&L on the
-  dashboard, not just realized.
-- A simple "pre-mortem" field on the entry form: "What would make me wrong?"
-  paired with the thesis field.
+Everything originally listed here as "not yet built" — CSV import
+(`lib/csvImport.js`, Trading212), per-trade tags, live unrealized P&L on
+the dashboard (`computeBalanceSheet`), and the pre-mortem field on the
+entry form — has since shipped. See `ROADMAP.md` for what's actually next
+(currently: multi-user backend migration, in progress as of Phase 3).
 
 ## Reading list referenced in conversation (for context, not code)
 
@@ -85,69 +84,3 @@ of a Stock Operator*) → Covel/Clenow (trend-following) → Schwager (*Market
 Wizards*) → Taleb (*Fooled by Randomness*). The discipline-checklist concept
 in this app borrows directly from O'Neil's sell rules and Minervini's
 risk-management emphasis.
-
-
-Market Data API
-
-Finnhub (free tier) — chosen over Alpha Vantage/Twelve Data because:
-
-60 requests/min free (vs. Alpha Vantage's 25/day)
-20-min delayed data — fine for a journal, not live trading
-Also provides fundamentals/earnings data for free
-
-Caching strategy to stay well within free limits:
-
-Closed trades: fetch once, cache indefinitely (DB or IndexedDB) — historical data never changes
-Open trades: React Query with staleTime of 5–15 min for polling
-Core Data Model (trade schema — starting point)
-Trade {
-  id
-  symbol
-  side: 'long' | 'short'
-  status: 'open' | 'closed'
-  entryDate, entryTime, entryPrice
-  exitDate, exitTime, exitPrice (nullable if open)
-  positionSize
-  fees
-  stopLoss, target (planned)
-  strategyTag
-  notes (free text)
-  moodBefore, moodDuring, moodAfter (optional psychological tagging)
-  ruleAdherence: boolean/checklist
-  screenshots: []
-  partialExits: []
-}
-Feature List
-MVP
-Trade logging (manual entry form + CSV import from broker export)
-Auto-calculated metrics: P&L (gross/net), R-multiple, win rate, avg win/loss, expectancy, hold time
-Dashboard: equity curve, P&L by symbol/strategy/day-of-week, win rate trend, max drawdown
-Trade detail view with price chart (see below)
-Trade Detail Chart Behavior
-Closed trades ("postmortem" mode):
-Candles from entry-padding to exit-padding
-Entry/exit markers, stop-loss/target lines (planned vs. actual)
-Extend chart range past the exit date — show what price did after closing (did they exit too early/late?)
-Optional: user-added annotations on specific candles ("panicked here")
-Computed stat: cost of exiting early/late (price movement in N days after exit)
-Open trades (live-ish mode):
-Candles from entry-padding to today, polling every 5–15 min
-Entry marker + stop/target lines
-Unrealized P&L vs. current price
-No postmortem features yet (trade isn't finished)
-High-value additions
-Emotional/psychological tagging (mood, confidence, plan adherence)
-Rule-adherence checklist per trade
-Tag-based filtering across all stats
-Weekly/monthly review view (best/worst trade, what to improve)
-Aggregate "mistake" reports (e.g., avg. money left on table from early exits)
-Nice-to-have
-Position sizing calculator
-Backtesting-lite (filter historical trades to test rule changes)
-Multi-account support
-PDF/CSV export
-Read-only share link for individual trades
-Architecture Notes
-Keep marketData service layer separate from journal domain logic (API integration vs. core business logic)
-status: 'open' | 'closed' field should drive which chart mode renders
-Free-tier API limits change over time — verify current Finnhub docs before building against them
