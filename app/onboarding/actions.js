@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { auth, unstable_update } from "@/auth";
 import pool from "@/lib/db";
+import { encrypt } from "@/lib/crypto";
 
 export async function completeOnboarding(formData) {
   const session = await auth();
@@ -40,8 +41,8 @@ export async function completeOnboarding(formData) {
       accountSize,
       defaultRiskPercent,
       maxPositionPercentAllowed,
-      twelveDataApiKey,
-      finnhubApiKey || null,
+      encrypt(twelveDataApiKey),
+      encrypt(finnhubApiKey),
     ]
   );
 

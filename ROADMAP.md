@@ -182,13 +182,29 @@ data logged before accounts existed" section, so it's documented if this
 app ever gets a second real user who needs the same recovery — no code
 changes, this phase was documentation only.
 
-### Phase 3.6 — Security hardening — not started
-- Encrypt `twelve_data_api_key`/`finnhub_api_key` at rest (AES via a
-  server-only secret env var) — they're moving from "never leaves your
-  browser" to "stored in a shared database," a real trust-boundary change
-  worth being explicit about.
-- Auth.js handles CSRF/session security by default; Vercel gives HTTPS by
-  default.
+### Phase 3.6 — Security hardening — ✅ done (API key encryption), verified live
+`twelve_data_api_key`/`finnhub_api_key` are now AES-256-GCM encrypted at
+rest (`lib/crypto.js`, Node's built-in `crypto`, no new dependency) — they'd
+moved from "never leaves your browser" to "stored in a shared database" in
+Phase 3.1, a real trust-boundary change now closed. Key is
+`SETTINGS_ENCRYPTION_KEY` in `.env.local` (32 bytes, base64, generated via
+`openssl rand -base64 32`) — losing it makes existing encrypted keys
+permanently undecryptable, an accepted tradeoff for two easily-re-entered
+optional keys, not worth building rotation/backup infra for.
+
+No separate migration script was needed: `decrypt()` is lenient — a value
+with no `enc:v1:` prefix is treated as legacy plaintext and passed through
+unchanged, so the existing plaintext row kept working immediately and
+self-healed the moment it was saved through Settings once. Verified live:
+existing key displayed correctly before any change, "Save settings" once
+re-wrote it as `enc:v1:...` in Neon, and it still displayed correctly
+after that. Every write path that touches these columns was updated:
+`lib/tradesDb.js`'s `updateSettings`/`resetAll`/`bulkImport`, and
+`app/onboarding/actions.js`'s separate upsert (easy to miss since it
+doesn't go through `lib/tradesDb.js` at all).
+
+Auth.js handles CSRF/session security by default; Vercel gives HTTPS by
+default — no further action needed there.
 
 ### Phase 3.7 — Cleanup — not started
 Remove the old `localStorage` read/write effects once the DB-backed flow is
