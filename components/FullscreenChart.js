@@ -12,7 +12,7 @@ import { TIMEFRAMES } from "@/lib/timeframes";
 const TOP_EMA_KEYS = ["ema5", "ema10", "ema30", "ema50", "ema200"];
 const TOP_INDICATOR_KEYS = ["bollingerBands", "rsi", "vwap", "atr"];
 const LEFT_INDICATOR_KEYS = ["alphaTrend", "waveTrend", "squeeze", "smc"];
-const RIGHT_INDICATOR_KEYS = ["stageAnalysis", "entryDisqualifier"];
+const RIGHT_INDICATOR_KEYS = ["stageAnalysis", "entryDisqualifier", "trendTemplate"];
 
 const DEFAULT_ACTIVE_EMAS = {};
 const DEFAULT_ACTIVE_INDICATORS = {};
@@ -48,9 +48,9 @@ const indicatorByKey = Object.fromEntries(INDICATOR_DEFINITIONS.map((def) => [de
 // in the top margin under "Default Indicators", the TradingView-style
 // indicators (AlphaTrend, WaveTrend, Squeeze Momentum, Smart Money Concepts)
 // live in the left margin, and this journal's own strategy indicators
-// (Stage Analysis, Entry Disqualifier) live in the right margin — all in the
-// empty space around the chart instead of overlaid on top of it. None are
-// active until the user toggles them on.
+// (Stage Analysis, Entry Disqualifier, Minervini Trend Template) live in the
+// right margin — all in the empty space around the chart instead of
+// overlaid on top of it. None are active until the user toggles them on.
 export default function FullscreenChart({
   title,
   trade,
