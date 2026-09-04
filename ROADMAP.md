@@ -171,15 +171,16 @@ Real bugs hit and fixed during this rollout, worth remembering:
   everything it pulls in) — a hard *browser* reload doesn't fix a stale
   *server* compile. Fixed by fully restarting `npm run dev`.
 
-### Phase 3.5 — Migration path for existing local data — done ad hoc, not formalized
+### Phase 3.5 — Migration path for existing local data — ✅ done
 The user's own pre-migration `localStorage` data (real trade history) was
 recovered with a one-off browser-console script reading `tj_trades_v1`/
 `tj_deposits_v1`/`tj_settings_v1` directly and downloading them as a JSON
 file, then imported via Settings' "Import journal from JSON" — proving the
 JSON-export-then-import bridge actually works end-to-end against the new
-Postgres-backed `importData`. Not formalized into a documented step
-anywhere (e.g. README) — worth doing if this app ever gets a second real
-user who needs the same recovery.
+Postgres-backed `importData`. Now formalized in `README.md`'s "Recovering
+data logged before accounts existed" section, so it's documented if this
+app ever gets a second real user who needs the same recovery — no code
+changes, this phase was documentation only.
 
 ### Phase 3.6 — Security hardening — not started
 - Encrypt `twelve_data_api_key`/`finnhub_api_key` at rest (AES via a
