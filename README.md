@@ -20,8 +20,8 @@ logs your trades and turns those specific habits into visible numbers.
 - **Dashboard analytics** — win rate, average R-multiple, expectancy,
   equity curve, R-multiple distribution, and a "trades to review" list that
   surfaces exactly which rule you broke on your worst trades.
-- **Your own account** — sign in via email magic link (an allowlist gates
-  who can create one). Data is stored per-account in Postgres, not the
+- **Your own account** — sign in via Google (an allowlist gates who can
+  create one). Data is stored per-account in Postgres, not the
   browser — see `ROADMAP.md` Phase 3 for how this replaced the original
   `localStorage`-only design. API keys are encrypted at rest.
 
@@ -29,7 +29,10 @@ logs your trades and turns those specific habits into visible numbers.
 
 1. Copy `.env.example` to `.env.local` and fill in every value — you'll
    need a Postgres database (Neon works well, free tier, no card
-   required) and a Resend account (for magic-link sign-in emails).
+   required) and a Google OAuth client (Google Cloud Console → APIs &
+   Services → Credentials → OAuth client ID, type "Web application",
+   with `http://localhost:3000/api/auth/callback/google` as an Authorized
+   redirect URI — add your production URL's equivalent once deployed).
    `AUTH_SECRET`/`SETTINGS_ENCRYPTION_KEY` are just generated secrets
    (`npx auth secret` / `openssl rand -base64 32`).
 2. Run `db/0001_init_auth.sql`, then `db/0002_app_tables.sql` (in that

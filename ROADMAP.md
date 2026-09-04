@@ -64,6 +64,21 @@ either). Everything else in this phase depends on it, so it goes first.
   small `/admin` page to manage it is a later nice-to-have, not required for
   launch at this scale.
 
+**Update (post-Phase 3.7):** Resend's magic link was replaced outright
+with **Google OAuth** — the actual goal was sharing this app with known
+colleagues, each with their own account, and Resend's sandbox-sender
+restriction (can only email the Resend account owner) made that
+impractical without verifying a custom domain. Google OAuth needs neither
+— `auth.js`'s `providers` is now `[Google]` instead of
+`[Resend({ from: ... })]`, `app/signin/page.js`/`actions.js` are a single
+"Sign in with Google" button/action, and the `signIn` callback simplified
+to just `isEmailAllowed(pool, user?.email)` (Google always populates
+`user.email`; the old `email`-param handling was Resend-specific). The
+allowlist gate itself is unchanged — still checked against whatever email
+the provider hands back, regardless of which provider it is. Needs
+`AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` from a Google Cloud Console OAuth
+client instead of `AUTH_RESEND_KEY`/`AUTH_EMAIL_FROM`.
+
 ### Phase 3.2 — Database schema — ✅ done
 `db/0002_app_tables.sql` ran against Neon — `user_settings`, `trades`,
 `exits`, `deposits` all exist alongside the Phase 3.1 auth tables. IDs are

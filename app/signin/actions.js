@@ -4,9 +4,9 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
 
-export async function signInWithEmail(formData) {
+export async function signInWithGoogle() {
   try {
-    await signIn("resend", formData);
+    await signIn("google");
   } catch (error) {
     // signIn() itself throws Next's internal redirect signal on success —
     // only AuthError (e.g. AccessDenied from the allowlist check) should be

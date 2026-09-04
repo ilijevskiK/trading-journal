@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import Resend from "next-auth/providers/resend";
+import Google from "next-auth/providers/google";
 import PostgresAdapter from "@auth/pg-adapter";
 import authConfig from "./auth.config";
 import pool from "@/lib/db";
@@ -12,16 +12,13 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   // Required because an adapter alone would otherwise default toward
   // database sessions, which the Edge middleware can't read (no `pg` there).
   session: { strategy: "jwt" },
-  providers: [Resend({ from: process.env.AUTH_EMAIL_FROM })],
+  providers: [Google],
   callbacks: {
     ...authConfig.callbacks,
-    // Fires twice for the email provider: once at magic-link request time
-    // (email.verificationRequest === true) and once when the link is
-    // clicked. Checked both times — rejecting at request time means a
-    // non-allowlisted address never even gets an email sent.
-    async signIn({ user, email }) {
-      const candidate = email?.address || email?.email || user?.email;
-      return isEmailAllowed(pool, candidate);
+    // Google OAuth only ever populates `user.email` — no separate
+    // verification-request step like the old Resend/Email provider had.
+    async signIn({ user }) {
+      return isEmailAllowed(pool, user?.email);
     },
     // This runs on every session check, not just sign-in — must not hit
     // Postgres on the routine path (matters once Phase 3.4 has pages

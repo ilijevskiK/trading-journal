@@ -1,4 +1,4 @@
-import { signInWithEmail } from "./actions";
+import { signInWithGoogle } from "./actions";
 
 export default function SignInPage({ searchParams }) {
   const error = searchParams?.error;
@@ -13,28 +13,12 @@ export default function SignInPage({ searchParams }) {
           </div>
         </div>
 
-        <form
-          action={signInWithEmail}
-          className="space-y-4 bg-surface border border-line rounded-lg p-6"
-        >
-          <div>
-            <label className="block text-sm text-parchment-dim mb-1.5" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              required
-              placeholder="you@example.com"
-              className="w-full bg-surface border border-line rounded-md px-3 py-2 text-sm text-parchment placeholder:text-parchment-faint focus:outline-none focus:border-gold-dim"
-            />
-          </div>
+        <form action={signInWithGoogle} className="bg-surface border border-line rounded-lg p-6">
           <button
             type="submit"
             className="w-full bg-gold text-ink px-5 py-2.5 rounded-md text-sm font-medium hover:bg-gold-bright transition-colors"
           >
-            Send sign-in link
+            Sign in with Google
           </button>
         </form>
 
