@@ -11,6 +11,7 @@ import {
   formatCurrency,
   isFullyClosed,
   todayLocalDateStr,
+  holdDays,
 } from "@/lib/calc";
 import TradeChart from "@/components/TradeChart";
 import { STRATEGIES, getStrategy } from "@/content/strategies";
@@ -37,6 +38,7 @@ export default function TradeRow({ trade, expanded, onToggle }) {
   const { checks, score } = disciplineChecks(trade);
   const closed = isFullyClosed(trade);
   const linkedStrategy = getStrategy(trade.strategyId);
+  const days = holdDays(trade);
 
   async function handleAddExit(e) {
     e.preventDefault();
@@ -129,6 +131,15 @@ export default function TradeRow({ trade, expanded, onToggle }) {
                 / {trade.shares} sh
               </p>
             </div>
+            {days !== null && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-parchment-faint mb-1">Held</p>
+                <p className="font-mono text-parchment-dim">
+                  {days} day{days === 1 ? "" : "s"}
+                  {!closed && " (ongoing)"}
+                </p>
+              </div>
+            )}
             {trade.premortem && (
               <div className="sm:col-span-2">
                 <p className="text-xs uppercase tracking-wide text-parchment-faint mb-1">

@@ -98,6 +98,15 @@ export function ReviewIcon(props) {
   );
 }
 
+export function Sp500Icon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="1.5" />
+      <path d="M7 15 L7 17 M11 12 L11 17 M15 9 L15 17" />
+    </Icon>
+  );
+}
+
 export function SettingsIcon(props) {
   return (
     <Icon {...props}>
