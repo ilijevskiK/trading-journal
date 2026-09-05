@@ -107,6 +107,15 @@ export function Sp500Icon(props) {
   );
 }
 
+export function VideosIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+      <path d="M10 9.5 L15 12 L10 14.5 Z" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
 export function SettingsIcon(props) {
   return (
     <Icon {...props}>
