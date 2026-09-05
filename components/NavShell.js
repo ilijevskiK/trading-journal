@@ -11,6 +11,7 @@ import {
   BooksIcon,
   StrategiesIcon,
   Sp500Icon,
+  VideosIcon,
   WatchlistIcon,
   NewTradeIcon,
   BreakdownsIcon,
@@ -27,9 +28,10 @@ const NAV_ITEMS = [
   { href: "/books", label: "Books", mark: "06", Icon: BooksIcon },
   { href: "/strategies", label: "Strategies", mark: "07", Icon: StrategiesIcon },
   { href: "/sp500", label: "S&P 500", mark: "08", Icon: Sp500Icon },
-  { href: "/watchlist", label: "Watchlist", mark: "09", Icon: WatchlistIcon },
-  { href: "/new", label: "New Trade", mark: "10", Icon: NewTradeIcon },
-  { href: "/settings", label: "Settings", mark: "11", Icon: SettingsIcon },
+  { href: "/videos", label: "Videos", mark: "09", Icon: VideosIcon },
+  { href: "/watchlist", label: "Watchlist", mark: "10", Icon: WatchlistIcon },
+  { href: "/new", label: "New Trade", mark: "11", Icon: NewTradeIcon },
+  { href: "/settings", label: "Settings", mark: "12", Icon: SettingsIcon },
 ];
 
 const COLLAPSED_KEY = "tj_sidebar_collapsed_v1";
