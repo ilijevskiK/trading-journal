@@ -12,7 +12,7 @@ export default function CompanyGlimpsePage({ params }) {
   const { data, loading, error } = useCompanyGlimpse(ticker, settings.finnhubApiKey);
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <Link href="/sp500" className="text-xs text-parchment-faint hover:text-parchment">
         ← S&amp;P 500
       </Link>

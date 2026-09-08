@@ -14,7 +14,7 @@ export default function IndicatorDetailPage({ params }) {
   const { name, developer, category, tradingviewUrl, Content, pineScript, pineLicense } = indicator;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <Link href="/indicators" className="text-xs text-parchment-faint hover:text-parchment">
         ← Indicators
       </Link>

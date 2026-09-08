@@ -13,7 +13,7 @@ export default function BookDetailPage({ params }) {
   const { title, author, edition, category, amazonUrl, Content } = book;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <Link href="/books" className="text-xs text-parchment-faint hover:text-parchment">
         ← Books
       </Link>

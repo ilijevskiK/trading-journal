@@ -167,7 +167,7 @@ function NewTradeContent() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <div className="flex items-baseline justify-between">
         <h1 className="font-display text-3xl text-parchment">New Trade</h1>
         <span className="font-mono text-xs text-parchment-faint">Pre-trade checklist</span>
