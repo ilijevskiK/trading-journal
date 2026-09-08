@@ -116,6 +116,16 @@ export function VideosIcon(props) {
   );
 }
 
+export function MemoirIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="4" width="11" height="16" rx="1.2" />
+      <path d="M8 8.5 L13 8.5 M8 12 L13 12 M8 15.5 L11 15.5" />
+      <path d="M14.5 15 L19.5 10 L21 11.5 L16 16.5 L14 17 Z" />
+    </Icon>
+  );
+}
+
 export function SettingsIcon(props) {
   return (
     <Icon {...props}>

@@ -36,6 +36,15 @@ export default function SettingsPage() {
   const fileInputRef = useRef(null);
   const csvInputRef = useRef(null);
 
+  // The raw OpenRouter key never reaches the client (see lib/tradesDb.js's
+  // mapSettingsRow) — only `settings.openRouterApiKeySet` (a boolean) does.
+  // So unlike twelveDataApiKey/finnhubApiKey above, this field is
+  // write-only: it always starts blank, and a blank submit is a no-op
+  // rather than "clear the key" (use the explicit remove button for that).
+  const [openRouterKeyInput, setOpenRouterKeyInput] = useState("");
+  const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
+  const [openRouterSaved, setOpenRouterSaved] = useState(false);
+
   function handleSave(e) {
     e.preventDefault();
     updateSettings({
@@ -49,6 +58,19 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 1800);
   }
 
+  async function handleSaveOpenRouterKey() {
+    if (!openRouterKeyInput.trim()) return; // no-op — use "Remove key" to clear
+    await updateSettings({ openRouterApiKey: openRouterKeyInput.trim() });
+    setOpenRouterKeyInput("");
+    setOpenRouterSaved(true);
+    setTimeout(() => setOpenRouterSaved(false), 1800);
+  }
+
+  async function handleRemoveOpenRouterKey() {
+    if (!confirm("Remove your saved OpenRouter API key?")) return;
+    await updateSettings({ openRouterApiKey: "" });
+  }
+
   function handleAddDeposit(e) {
     e.preventDefault();
     const amount = parseFloat(depositAmount);
@@ -60,7 +82,7 @@ export default function SettingsPage() {
   function handleExport() {
     // Exclude API keys from exports — they're personal credentials, and an
     // exported journal file is meant to be portable/shareable as a backup.
-    const { twelveDataApiKey, finnhubApiKey, ...settingsWithoutKey } = settings;
+    const { twelveDataApiKey, finnhubApiKey, openRouterApiKeySet, ...settingsWithoutKey } = settings;
     const blob = new Blob(
       [JSON.stringify({ trades, deposits, settings: settingsWithoutKey }, null, 2)],
       { type: "application/json" }
@@ -160,7 +182,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-lg">
+    <div className="max-w-lg mx-auto">
       <h1 className="font-display text-3xl text-parchment">Settings</h1>
       <div className="rule-divider mt-4 mb-8" />
 
@@ -288,6 +310,66 @@ export default function SettingsPage() {
           {saved ? "Saved ✓" : "Save settings"}
         </button>
       </form>
+
+      <div className="pt-6">
+        <h2 className="text-sm text-parchment mb-2">Memoir (AI)</h2>
+        <p className="text-xs text-parchment-faint mb-3">
+          Powers the Memoir section&apos;s AI-written chapters reflecting on
+          your closed trades, via{" "}
+          <a
+            href="https://openrouter.ai/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gold-bright hover:underline"
+          >
+            openrouter.ai
+          </a>{" "}
+          (free tier available, no card required). Stored encrypted and
+          used only server-side — never sent to your browser, and left out
+          of journal exports.
+        </p>
+        <Field label="OpenRouter API key">
+          <div className="flex gap-2">
+            <input
+              type={showOpenRouterKey ? "text" : "password"}
+              value={openRouterKeyInput}
+              onChange={(e) => setOpenRouterKeyInput(e.target.value)}
+              placeholder={
+                settings.openRouterApiKeySet
+                  ? "Key is set — paste a new one to replace it"
+                  : "Paste your API key"
+              }
+              className={inputClass + " font-mono"}
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={() => setShowOpenRouterKey((v) => !v)}
+              className="shrink-0 text-xs border border-line rounded-md px-3 text-parchment-dim hover:text-parchment hover:border-gold-dim"
+            >
+              {showOpenRouterKey ? "Hide" : "Show"}
+            </button>
+          </div>
+        </Field>
+        <div className="flex items-center gap-4 mt-3">
+          <button
+            type="button"
+            onClick={handleSaveOpenRouterKey}
+            className="bg-gold text-ink px-5 py-2.5 rounded-md text-sm font-medium hover:bg-gold-bright transition-colors"
+          >
+            {openRouterSaved ? "Saved ✓" : "Save key"}
+          </button>
+          {settings.openRouterApiKeySet && (
+            <button
+              type="button"
+              onClick={handleRemoveOpenRouterKey}
+              className="text-xs text-loss-bright hover:underline"
+            >
+              Remove saved key
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="rule-divider mt-10 mb-6" />
 

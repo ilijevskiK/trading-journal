@@ -14,7 +14,7 @@ export default function StrategyDetailPage({ params }) {
   const { title, author, category, Content, pineScript, pineLicense } = strategy;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <Link href="/strategies" className="text-xs text-parchment-faint hover:text-parchment">
         ← Trading Strategies
       </Link>
