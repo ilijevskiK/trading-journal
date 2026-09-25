@@ -7,8 +7,8 @@ import { useLiveQuotes } from "@/hooks/useLiveQuotes";
 import StatCard from "@/components/StatCard";
 import DisciplineRing from "@/components/DisciplineRing";
 import EquityCurveChart from "@/components/EquityCurveChart";
-import RMultipleChart from "@/components/RMultipleChart";
 import BalancePieChart from "@/components/BalancePieChart";
+import HoldTimeVsPnlChart from "@/components/HoldTimeVsPnlChart";
 import {
   computeStats,
   computeEquityCurve,
@@ -16,10 +16,9 @@ import {
   currentAccountSize,
   overallDisciplineScore,
   disciplineChecks,
-  rMultiple,
   sharesRemaining,
-  topMovers,
   maxDrawdown,
+  closedPositions,
   formatCurrency,
   formatPercent,
 } from "@/lib/calc";
@@ -81,17 +80,15 @@ export default function DashboardPage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  const flaggedTrades = useMemo(
-    () =>
-      trades
-        .map((t) => ({ trade: t, ...disciplineChecks(t) }))
-        .filter((x) => x.score < 100)
-        .sort((a, b) => a.score - b.score)
-        .slice(0, 5),
-    [trades]
+  const positions = useMemo(() => closedPositions(trades), [trades]);
+  const topWinners = useMemo(
+    () => positions.filter((p) => p.pnl > 0).sort((a, b) => b.pnl - a.pnl).slice(0, 3),
+    [positions]
   );
-
-  const { winners: topWinners, losers: topLosers } = useMemo(() => topMovers(trades, 3), [trades]);
+  const topLosers = useMemo(
+    () => positions.filter((p) => p.pnl < 0).sort((a, b) => a.pnl - b.pnl).slice(0, 3),
+    [positions]
+  );
 
   if (!loaded) return null;
 
@@ -120,7 +117,7 @@ export default function DashboardPage() {
     <div>
       <PageHeader />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-8">
         <StatCard
           label="Total P&L"
           value={`${formatCurrency(stats.totalPnl)} (${pnlPercent >= 0 ? "+" : ""}${formatPercent(
@@ -133,11 +130,6 @@ export default function DashboardPage() {
           label="Win rate"
           value={formatPercent(stats.winRate)}
           sub={`${stats.closedTrades} closed`}
-        />
-        <StatCard
-          label="Avg R-multiple"
-          value={`${stats.avgR}R`}
-          tone={stats.avgR >= 0 ? "gain" : "loss"}
         />
         <StatCard
           label="Expectancy / trade"
@@ -153,16 +145,16 @@ export default function DashboardPage() {
             <p className="text-sm text-parchment-faint mt-3">No winning trades closed yet.</p>
           ) : (
             <ul className="mt-3 divide-y divide-line">
-              {topWinners.map(({ trade, pnl }) => (
-                <li key={trade.id} className="py-2.5 flex items-center justify-between">
+              {topWinners.map((p) => (
+                <li key={p.id} className="py-2.5 flex items-center justify-between">
                   <Link
-                    href={`/journal?open=${trade.id}`}
+                    href={`/journal?open=${p.id}`}
                     className="font-mono text-sm text-parchment hover:text-gold-bright"
                   >
-                    {trade.ticker || "—"}
+                    {p.ticker || "—"}
                   </Link>
                   <span className="font-mono text-sm text-gain-bright">
-                    {formatCurrency(pnl)} · {rMultiple(trade).toFixed(1)}R
+                    {formatCurrency(p.pnl)} · {p.days}d
                   </span>
                 </li>
               ))}
@@ -176,16 +168,16 @@ export default function DashboardPage() {
             <p className="text-sm text-parchment-faint mt-3">No losing trades closed yet.</p>
           ) : (
             <ul className="mt-3 divide-y divide-line">
-              {topLosers.map(({ trade, pnl }) => (
-                <li key={trade.id} className="py-2.5 flex items-center justify-between">
+              {topLosers.map((p) => (
+                <li key={p.id} className="py-2.5 flex items-center justify-between">
                   <Link
-                    href={`/journal?open=${trade.id}`}
+                    href={`/journal?open=${p.id}`}
                     className="font-mono text-sm text-parchment hover:text-gold-bright"
                   >
-                    {trade.ticker || "—"}
+                    {p.ticker || "—"}
                   </Link>
                   <span className="font-mono text-sm text-loss-bright">
-                    {formatCurrency(pnl)} · {rMultiple(trade).toFixed(1)}R
+                    {formatCurrency(p.pnl)} · {p.days}d
                   </span>
                 </li>
               ))}
@@ -256,44 +248,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-5 mt-5">
-        <div className="bg-surface border border-line rounded-lg p-5">
-          <SectionLabel>R-multiple by trade</SectionLabel>
-          <RMultipleChart trades={trades} computeR={rMultiple} />
-        </div>
-
-        <div className="bg-surface border border-line rounded-lg p-5">
-          <SectionLabel>Trades to review</SectionLabel>
-          {flaggedTrades.length === 0 ? (
-            <p className="text-sm text-parchment-faint mt-3">
-              Nothing flagged. Every logged trade passed its checklist.
-            </p>
-          ) : (
-            <ul className="mt-3 divide-y divide-line">
-              {flaggedTrades.map(({ trade, checks, score }) => (
-                <li key={trade.id} className="py-2.5">
-                  <div className="flex items-center justify-between">
-                    <Link
-                      href={`/journal?open=${trade.id}`}
-                      className="font-mono text-sm text-parchment hover:text-gold-bright"
-                    >
-                      {trade.ticker || "—"}
-                    </Link>
-                    <span className="font-mono text-xs text-parchment-faint">
-                      {score}/100
-                    </span>
-                  </div>
-                  <div className="text-xs text-loss-bright mt-1">
-                    {Object.entries(checks)
-                      .filter(([, v]) => !v)
-                      .map(([k]) => CHECK_LABELS[k])
-                      .join(" · ")}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      <div className="bg-surface border border-line rounded-lg p-5 mt-5">
+        <SectionLabel>Hold time vs. profit</SectionLabel>
+        <p className="text-xs text-parchment-faint -mt-1 mb-4">
+          Each dot is one closed position — days held on the x-axis, realized P&amp;L on the
+          y-axis. Multiple entries closed by the same sell count as one.
+        </p>
+        <HoldTimeVsPnlChart data={positions} />
       </div>
 
     </div>

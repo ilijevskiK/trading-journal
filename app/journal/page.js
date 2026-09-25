@@ -114,6 +114,15 @@ function JournalContent() {
 
   const rows = useMemo(() => groupTradesByTicker(filtered), [filtered]);
 
+  // Re-sync on every ?open= change, not just the first mount — the App
+  // Router can reuse an already-mounted Journal instance for a same-page
+  // navigation with a new query string (e.g. clicking a second dashboard
+  // link without leaving /journal in between), so a mount-only useState
+  // would silently keep expanding whatever was expanded before.
+  useEffect(() => {
+    if (openParam) setExpanded(openParam);
+  }, [openParam]);
+
   // If a trade was deep-linked via ?open=, and it landed inside a group
   // (scaled into a name with other open lots, or closed same-day as another
   // lot), expand that group by default so the linked trade is actually
