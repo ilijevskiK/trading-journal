@@ -35,6 +35,12 @@ logs your trades and turns those specific habits into visible numbers.
    redirect URI — add your production URL's equivalent once deployed).
    `AUTH_SECRET`/`SETTINGS_ENCRYPTION_KEY` are just generated secrets
    (`npx auth secret` / `openssl rand -base64 32`).
+   For CAN SLIM's Stock Check, also set `SEC_USER_AGENT` to a name and
+   contact email (e.g. `SEC_USER_AGENT="Ledger journal you@example.com"`):
+   SEC EDGAR requires one on every request.
+   For RS Ratings on the Leadership (L) page, set `MASSIVE_API_KEY` to a
+   free massive.com (formerly Polygon.io) key, and run
+   `db/0007_rs_ratings.sql`.
 2. Run `db/0001_init_auth.sql`, then `db/0002_app_tables.sql` (in that
    order — the second references tables the first creates) against your
    Postgres database, e.g. via Neon's SQL editor.

@@ -71,7 +71,6 @@ export default function WatchlistCard({ ticker, apiKey, finnhubApiKey, onRemove 
       <CandlestickChart
         trade={trade}
         candles={displayCandles}
-        apiKey={apiKey}
         aspectRatio="16/9"
         onExpand={candles.length > 0 ? () => setFullscreen(true) : undefined}
       />
@@ -98,7 +97,6 @@ export default function WatchlistCard({ ticker, apiKey, finnhubApiKey, onRemove 
           error={fullscreenQuery.error}
           timeframe={timeframe}
           onTimeframeChange={setTimeframe}
-          apiKey={apiKey}
           onClose={() => setFullscreen(false)}
         />
       )}

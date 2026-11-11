@@ -10,9 +10,8 @@ import ChartModal from "@/components/ChartModal";
 import { TIMEFRAMES } from "@/lib/timeframes";
 
 const TOP_EMA_KEYS = ["ema5", "ema10", "ema30", "ema50", "ema200"];
-const TOP_INDICATOR_KEYS = ["bollingerBands", "rsi", "vwap", "atr"];
-const LEFT_INDICATOR_KEYS = ["alphaTrend", "waveTrend", "squeeze", "smc"];
-const RIGHT_INDICATOR_KEYS = ["stageAnalysis", "entryDisqualifier", "trendTemplate"];
+const TOP_INDICATOR_KEYS = ["bollingerBands", "rsi"];
+const LEFT_INDICATOR_KEYS = ["waveTrend", "smc"];
 
 const DEFAULT_ACTIVE_EMAS = {};
 const DEFAULT_ACTIVE_INDICATORS = {};
@@ -45,12 +44,10 @@ const emaByKey = Object.fromEntries(EMA_DEFINITIONS.map((def) => [def.key, def])
 const indicatorByKey = Object.fromEntries(INDICATOR_DEFINITIONS.map((def) => [def.key, def]));
 
 // The fullscreen chart view: EMA5/10/30/50/200 + Bollinger Bands + RSI live
-// in the top margin under "Default Indicators", the TradingView-style
-// indicators (AlphaTrend, WaveTrend, Squeeze Momentum, Smart Money Concepts)
-// live in the left margin, and this journal's own strategy indicators
-// (Stage Analysis, Entry Disqualifier, Minervini Trend Template) live in the
-// right margin — all in the empty space around the chart instead of
-// overlaid on top of it. None are active until the user toggles them on.
+// in the top margin under "Default Indicators", and the TradingView-style
+// indicators (WaveTrend, Smart Money Concepts) live in the left margin —
+// in the empty space around the chart instead of overlaid on top of it.
+// None are active until the user toggles them on.
 export default function FullscreenChart({
   title,
   trade,
@@ -59,8 +56,11 @@ export default function FullscreenChart({
   error,
   timeframe,
   onTimeframeChange,
-  apiKey,
   onClose,
+  smaLines,
+  extraMarkers,
+  statusBand,
+  extraPriceLines,
 }) {
   const [activeEmas, setActiveEmas] = useState(
     () => loadStoredToggles()?.emas ?? DEFAULT_ACTIVE_EMAS
@@ -147,7 +147,10 @@ export default function FullscreenChart({
               key={timeframe}
               trade={trade}
               candles={candles}
-              apiKey={apiKey}
+              smaLines={smaLines}
+              extraMarkers={extraMarkers}
+              statusBand={statusBand}
+              extraPriceLines={extraPriceLines}
               fillHeight
               alwaysShowControls
               enableIndicators
@@ -157,10 +160,6 @@ export default function FullscreenChart({
               activeIndicators={activeIndicators}
               onToggleIndicator={toggleIndicator}
             />
-          </div>
-          <div className="flex flex-col gap-3 w-36 shrink-0 pt-1">
-            <GroupLabel>Strategies</GroupLabel>
-            {RIGHT_INDICATOR_KEYS.map(indicatorChip)}
           </div>
         </div>
       </div>

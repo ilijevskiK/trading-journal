@@ -1,37 +1,21 @@
-import StageAnalysisStrategyContent, {
-  meta as stageAnalysisMeta,
-} from "./stage-analysis";
-import {
-  pineScript as stageAnalysisPine,
-  license as stageAnalysisLicense,
-} from "./pine-scripts/stage-analysis";
-import EntryDisqualifierContent, {
-  meta as entryDisqualifierMeta,
-} from "./entry-disqualifier";
-import {
-  pineScript as entryDisqualifierPine,
-  license as entryDisqualifierLicense,
-} from "./pine-scripts/entry-disqualifier";
-
-// Each entry pairs metadata (for the list page) with the write-up component
-// (rendered on that strategy's detail page) and, where available, an
-// accompanying Pine Script, so the detail page can offer an Explanation /
-// Pine Script toggle. Add new strategies here.
+// Strategies a trade can be tagged with. An entry either has a write-up
+// component (`Content`, rendered at /strategies/[slug]), optionally with a
+// Pine Script for the Explanation / Pine Script toggle, or an `href` to its
+// own section of the app.
 export const STRATEGIES = [
   {
-    ...stageAnalysisMeta,
-    Content: StageAnalysisStrategyContent,
-    pineScript: stageAnalysisPine,
-    pineLicense: stageAnalysisLicense,
-  },
-  {
-    ...entryDisqualifierMeta,
-    Content: EntryDisqualifierContent,
-    pineScript: entryDisqualifierPine,
-    pineLicense: entryDisqualifierLicense,
+    slug: "can-slim",
+    title: "CAN SLIM",
+    author: "William J. O'Neil",
+    category: "Growth",
+    href: "/strategies",
   },
 ];
 
 export function getStrategy(slug) {
   return STRATEGIES.find((s) => s.slug === slug) || null;
+}
+
+export function strategyHref(strategy) {
+  return strategy.href || `/strategies/${strategy.slug}`;
 }

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useTrades } from "@/contexts/TradesContext";
 import { useLiveQuotes } from "@/hooks/useLiveQuotes";
 import StatCard from "@/components/StatCard";
-import DisciplineRing from "@/components/DisciplineRing";
 import EquityCurveChart from "@/components/EquityCurveChart";
 import BalancePieChart from "@/components/BalancePieChart";
 import HoldTimeVsPnlChart from "@/components/HoldTimeVsPnlChart";
@@ -14,22 +13,12 @@ import {
   computeEquityCurve,
   computeBalanceSheet,
   currentAccountSize,
-  overallDisciplineScore,
-  disciplineChecks,
   sharesRemaining,
   maxDrawdown,
   closedPositions,
   formatCurrency,
   formatPercent,
 } from "@/lib/calc";
-
-const CHECK_LABELS = {
-  hasThesis: "Wrote a one-sentence thesis",
-  hasStop: "Set a stop before entry",
-  understoodBusiness: "Actually understood the business",
-  stopNotMoved: "Didn't move the stop against plan",
-  sizedWithinLimit: "Stayed within position-size limit",
-};
 
 export default function DashboardPage() {
   const { trades, settings, deposits, loaded } = useTrades();
@@ -47,7 +36,6 @@ export default function DashboardPage() {
     () => computeEquityCurve(trades, deposits, settings.accountSize),
     [trades, deposits, settings.accountSize]
   );
-  const discipline = useMemo(() => overallDisciplineScore(trades), [trades]);
   const drawdown = useMemo(() => maxDrawdown(equityCurve), [equityCurve]);
 
   const openTickers = useMemo(
@@ -62,23 +50,6 @@ export default function DashboardPage() {
     () => computeBalanceSheet({ trades, accountSize, livePrices }),
     [trades, accountSize, livePrices]
   );
-
-  const checkFailureCounts = useMemo(() => {
-    const counts = {};
-    Object.keys(CHECK_LABELS).forEach((k) => (counts[k] = 0));
-    trades.forEach((t) => {
-      const { checks } = disciplineChecks(t);
-      Object.entries(checks).forEach(([k, v]) => {
-        if (!v) counts[k] += 1;
-      });
-    });
-    return counts;
-  }, [trades]);
-
-  const topFailures = Object.entries(checkFailureCounts)
-    .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
 
   const positions = useMemo(() => closedPositions(trades), [trades]);
   const topWinners = useMemo(
@@ -212,40 +183,9 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-5 mt-5">
-        <div className="md:col-span-2 bg-surface border border-line rounded-lg p-5">
-          <SectionLabel>Equity curve</SectionLabel>
-          <EquityCurveChart data={equityCurve} />
-        </div>
-
-        <div className="bg-surface border border-line rounded-lg p-5 flex flex-col items-center justify-center">
-          <SectionLabel>Discipline score</SectionLabel>
-          <div className="mt-2">
-            <DisciplineRing score={discipline} />
-          </div>
-          {topFailures.length > 0 ? (
-            <div className="mt-4 w-full">
-              <p className="text-xs text-parchment-faint mb-2 uppercase tracking-wide">
-                Most common slip
-              </p>
-              <ul className="space-y-1.5">
-                {topFailures.map(([key, count]) => (
-                  <li
-                    key={key}
-                    className="text-xs text-parchment-dim flex justify-between"
-                  >
-                    <span>{CHECK_LABELS[key]}</span>
-                    <span className="font-mono text-loss-bright">{count}×</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="mt-4 text-xs text-gain-bright text-center">
-              Every checklist box, every trade. Keep it that way.
-            </p>
-          )}
-        </div>
+      <div className="bg-surface border border-line rounded-lg p-5 mt-5">
+        <SectionLabel>Equity curve</SectionLabel>
+        <EquityCurveChart data={equityCurve} />
       </div>
 
       <div className="bg-surface border border-line rounded-lg p-5 mt-5">

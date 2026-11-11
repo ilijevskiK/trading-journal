@@ -82,7 +82,6 @@ export default function TradeChart({ trade, apiKey }) {
           error={fullscreenQuery.error}
           timeframe={timeframe}
           onTimeframeChange={setTimeframe}
-          apiKey={apiKey}
           onClose={() => setFullscreen(false)}
         />
       )}
