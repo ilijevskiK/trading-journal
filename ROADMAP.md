@@ -17,8 +17,9 @@ No new architecture, just filling gaps in data/UI that already existed.
 
 ## Phase 2 — Deepen the review & discipline workflow ✅ done
 
-- `/review` page: discipline-score and win-rate trend by month
-  (`lib/calc.js:monthlyReviewTrend`), plus a month-by-month table
+- ~~`/review` page: discipline-score and win-rate trend by month
+  (`lib/calc.js:monthlyReviewTrend`), plus a month-by-month table~~ —
+  removed later; the Journal covers the same analysis
 - "Cost of exiting early/late" postmortem stat under each closed trade's
   chart (`lib/calc.js:exitPostmortem`) — reuses candles the chart was
   already fetching 15 days past the exit date, no new API calls

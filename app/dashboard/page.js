@@ -1,0 +1,228 @@
+"use client";
+
+import { useMemo } from "react";
+import Link from "next/link";
+import { useTrades } from "@/contexts/TradesContext";
+import { useLiveQuotes } from "@/hooks/useLiveQuotes";
+import StatCard from "@/components/StatCard";
+import EquityCurveChart from "@/components/EquityCurveChart";
+import BalancePieChart from "@/components/BalancePieChart";
+import HoldTimeVsPnlChart from "@/components/HoldTimeVsPnlChart";
+import {
+  computeStats,
+  computeEquityCurve,
+  computeBalanceSheet,
+  currentAccountSize,
+  sharesRemaining,
+  maxDrawdown,
+  closedPositions,
+  formatCurrency,
+  formatPercent,
+} from "@/lib/calc";
+
+export default function DashboardPage() {
+  const { trades, settings, deposits, loaded } = useTrades();
+
+  const accountSize = useMemo(
+    () => currentAccountSize(settings.accountSize, deposits),
+    [settings.accountSize, deposits]
+  );
+
+  const stats = useMemo(() => computeStats(trades), [trades]);
+  // Return on contributed capital (starting size + deposits) — not on
+  // current equity, so a deposit doesn't itself change this percentage.
+  const pnlPercent = accountSize ? (stats.totalPnl / accountSize) * 100 : 0;
+  const equityCurve = useMemo(
+    () => computeEquityCurve(trades, deposits, settings.accountSize),
+    [trades, deposits, settings.accountSize]
+  );
+  const drawdown = useMemo(() => maxDrawdown(equityCurve), [equityCurve]);
+
+  const openTickers = useMemo(
+    () => trades.filter((t) => sharesRemaining(t) > 0).map((t) => t.ticker),
+    [trades]
+  );
+  const { quotes: livePrices, loading: loadingQuotes } = useLiveQuotes(
+    openTickers,
+    settings.twelveDataApiKey
+  );
+  const balanceSheet = useMemo(
+    () => computeBalanceSheet({ trades, accountSize, livePrices }),
+    [trades, accountSize, livePrices]
+  );
+
+  const positions = useMemo(() => closedPositions(trades), [trades]);
+  const topWinners = useMemo(
+    () => positions.filter((p) => p.pnl > 0).sort((a, b) => b.pnl - a.pnl).slice(0, 3),
+    [positions]
+  );
+  const topLosers = useMemo(
+    () => positions.filter((p) => p.pnl < 0).sort((a, b) => a.pnl - b.pnl).slice(0, 3),
+    [positions]
+  );
+
+  if (!loaded) return null;
+
+  if (trades.length === 0) {
+    return (
+      <div className="max-w-xl">
+        <PageHeader />
+        <div className="mt-10 border border-line rounded-lg bg-surface px-6 py-10 text-center">
+          <p className="text-parchment-dim text-sm mb-4">
+            No trades logged yet. Start with your next one — even better, log
+            a couple from memory (Oklo, CTSH, the winners you sold too early)
+            so the analytics have something real to work with.
+          </p>
+          <Link
+            href="/new"
+            className="inline-block bg-gold text-ink px-5 py-2.5 rounded-md text-sm font-medium hover:bg-gold-bright transition-colors"
+          >
+            Log your first trade
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-8">
+        <StatCard
+          label="Total P&L"
+          value={`${formatCurrency(stats.totalPnl)} (${pnlPercent >= 0 ? "+" : ""}${formatPercent(
+            pnlPercent
+          )})`}
+          tone={stats.totalPnl >= 0 ? "gain" : "loss"}
+          sub={`${stats.tradesWithExits} trades with exits`}
+        />
+        <StatCard
+          label="Win rate"
+          value={formatPercent(stats.winRate)}
+          sub={`${stats.closedTrades} closed`}
+        />
+        <StatCard
+          label="Expectancy / trade"
+          value={formatCurrency(stats.expectancy)}
+          tone={stats.expectancy >= 0 ? "gain" : "loss"}
+        />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-5 mt-5">
+        <div className="bg-surface border border-line rounded-lg p-5">
+          <SectionLabel>Biggest winners</SectionLabel>
+          {topWinners.length === 0 ? (
+            <p className="text-sm text-parchment-faint mt-3">No winning trades closed yet.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-line">
+              {topWinners.map((p) => (
+                <li key={p.id} className="py-2.5 flex items-center justify-between">
+                  <Link
+                    href={`/journal?open=${p.id}`}
+                    className="font-mono text-sm text-parchment hover:text-gold-bright"
+                  >
+                    {p.ticker || "—"}
+                  </Link>
+                  <span className="font-mono text-sm text-gain-bright">
+                    {formatCurrency(p.pnl)} · {p.days}d
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-surface border border-line rounded-lg p-5">
+          <SectionLabel>Biggest losers</SectionLabel>
+          {topLosers.length === 0 ? (
+            <p className="text-sm text-parchment-faint mt-3">No losing trades closed yet.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-line">
+              {topLosers.map((p) => (
+                <li key={p.id} className="py-2.5 flex items-center justify-between">
+                  <Link
+                    href={`/journal?open=${p.id}`}
+                    className="font-mono text-sm text-parchment hover:text-gold-bright"
+                  >
+                    {p.ticker || "—"}
+                  </Link>
+                  <span className="font-mono text-sm text-loss-bright">
+                    {formatCurrency(p.pnl)} · {p.days}d
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-5">
+        <StatCard label="Avg win" value={formatCurrency(stats.avgWin)} tone="gain" />
+        <StatCard label="Avg loss" value={formatCurrency(stats.avgLoss)} tone="loss" />
+        <StatCard
+          label="Max drawdown"
+          value={`${formatCurrency(-drawdown.amount)} (${formatPercent(drawdown.percent)})`}
+          tone="loss"
+          sub="Largest peak-to-trough decline in balance"
+        />
+      </div>
+
+      <div className="bg-surface border border-line rounded-lg p-5 mt-5">
+        <SectionLabel>Current balance sheet</SectionLabel>
+        <p className="text-xs text-parchment-faint -mt-1 mb-4">
+          Cash plus every open position, valued at today&apos;s price — realized P&amp;L
+          from closed trades is already folded into cash.
+        </p>
+        <BalancePieChart
+          cash={balanceSheet.cash}
+          totalEquity={balanceSheet.totalEquity}
+          positions={balanceSheet.positions}
+          hasApiKey={Boolean(settings.twelveDataApiKey)}
+          loadingQuotes={loadingQuotes}
+        />
+      </div>
+
+      <div className="bg-surface border border-line rounded-lg p-5 mt-5">
+        <SectionLabel>Equity curve</SectionLabel>
+        <EquityCurveChart data={equityCurve} />
+      </div>
+
+      <div className="bg-surface border border-line rounded-lg p-5 mt-5">
+        <SectionLabel>Hold time vs. profit</SectionLabel>
+        <p className="text-xs text-parchment-faint -mt-1 mb-4">
+          Each dot is one closed position — days held on the x-axis, realized P&amp;L on the
+          y-axis. Multiple entries closed by the same sell count as one.
+        </p>
+        <HoldTimeVsPnlChart data={positions} />
+      </div>
+
+    </div>
+  );
+}
+
+function PageHeader() {
+  const today = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <h1 className="font-display text-3xl text-parchment">Dashboard</h1>
+        <span className="font-mono text-xs text-parchment-faint">{today}</span>
+      </div>
+      <div className="rule-divider mt-4" />
+    </div>
+  );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <h2 className="text-xs uppercase tracking-wide text-parchment-faint mb-1">
+      {children}
+    </h2>
+  );
+}

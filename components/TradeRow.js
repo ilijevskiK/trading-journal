@@ -14,7 +14,7 @@ import {
   holdDays,
 } from "@/lib/calc";
 import TradeChart from "@/components/TradeChart";
-import { STRATEGIES, getStrategy } from "@/content/strategies";
+import { STRATEGIES, getStrategy, strategyHref } from "@/content/strategies";
 
 const CHECK_LABELS = {
   hasThesis: "Thesis written",
@@ -236,7 +236,7 @@ export default function TradeRow({ trade, expanded, onToggle }) {
             <p className="text-xs uppercase tracking-wide text-parchment-faint mb-2">Strategy used</p>
             {linkedStrategy ? (
               <Link
-                href={`/strategies/${linkedStrategy.slug}`}
+                href={strategyHref(linkedStrategy)}
                 className="text-sm text-gold-bright hover:underline"
               >
                 {linkedStrategy.title}

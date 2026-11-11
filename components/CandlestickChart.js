@@ -9,26 +9,15 @@ import {
   createSeriesMarkers,
   ColorType,
   LineStyle,
-  LineType,
 } from "lightweight-charts";
 import {
-  computeAlphaTrend,
+  sma,
   computeWaveTrend,
-  computeSqueezeMomentum,
-  computeStageAnalysis,
-  computeEntryDisqualifier,
-  computeTrendTemplate,
   computeBollingerBands,
   computeRSI,
-  computeATR,
-  computeVWAP,
 } from "@/lib/indicatorMath";
 import { computeSmcStructure } from "@/lib/smc";
 import { OrderBlockPrimitive } from "@/lib/orderBlockPrimitive";
-import { fetchDailyCandles } from "@/lib/marketData";
-import { getCachedCandles, setCachedCandles } from "@/lib/chartCache";
-
-const BENCHMARK_SYMBOL = "SPY";
 
 const COLORS = {
   bg: "#1B1F27", // surface
@@ -60,9 +49,7 @@ const ZOOM_IN_FACTOR = 0.7;
 const ZOOM_OUT_FACTOR = 1 / ZOOM_IN_FACTOR;
 
 const WAVETREND_PANE = 1;
-const SQUEEZE_PANE = 2;
-const RSI_PANE = 3;
-const ATR_PANE = 4;
+const RSI_PANE = 2;
 
 // Toggleable EMA overlays, offered only where enableIndicators is set
 // (the fullscreen view). Colors are chosen to stay distinguishable from
@@ -80,17 +67,10 @@ export const EMA_DEFINITIONS = [
 // re-implementations, not a Pine interpreter. Dot colors here are just for
 // the toggle pill; actual on-chart colors are set where each is drawn.
 export const INDICATOR_DEFINITIONS = [
-  { key: "alphaTrend", label: "AlphaTrend", color: "#2DD4BF" },
   { key: "waveTrend", label: "WaveTrend", color: "#38BDF8" },
-  { key: "squeeze", label: "Squeeze Momentum", color: "#D98B3F" },
   { key: "smc", label: "SMC", fullLabel: "Smart Money Concepts", color: "#A78BFA" },
-  { key: "stageAnalysis", label: "Stage Analysis", color: "#6366F1" },
-  { key: "entryDisqualifier", label: "ED", fullLabel: "Entry Disqualifier", color: "#F43F5E" },
-  { key: "trendTemplate", label: "Trend Template", fullLabel: "Minervini Trend Template", color: "#C9A24B" },
   { key: "bollingerBands", label: "Bollinger Bands", color: "#60A5FA" },
   { key: "rsi", label: "RSI", color: "#FACC15" },
-  { key: "vwap", label: "VWAP", color: "#EC4899" },
-  { key: "atr", label: "ATR", color: "#84CC16" },
 ];
 
 const SMC_BULL_OB_COLOR = "#3179f5"; // matches the original LuxAlgo bullish OB color
@@ -100,15 +80,17 @@ const SMC_BEAR_OB_FILL = "rgba(247, 124, 128, 0.35)";
 const SMC_BULL_BREAK_COLOR = "#089981";
 const SMC_BEAR_BREAK_COLOR = "#f23645";
 
-const STAGE_BREAKOUT_COLOR = "#4FAF8B";
-const STAGE_BREAKDOWN_COLOR = "#DB6E54";
-const STAGE_RESISTANCE_COLOR = "#6366F1";
+const NO_SMA_LINES = [];
+const NO_EXTRA_MARKERS = [];
+const NO_STATUS_BAND = [];
+const NO_PRICE_LINES = [];
 
-// Brightest = shortest period, so the stacking order (50 > 150 > 200 in a
-// healthy uptrend) is readable at a glance without reading the legend.
-const TREND_TEMPLATE_MA50_COLOR = "#F0C674";
-const TREND_TEMPLATE_MA150_COLOR = "#C9A24B";
-const TREND_TEMPLATE_MA200_COLOR = "#8A6D2F";
+function computeSMA(candles, period) {
+  const values = sma(candles.map((c) => c.close), period);
+  return candles
+    .map((c, i) => ({ time: c.time, value: values[i] }))
+    .filter((p) => p.value != null);
+}
 
 // Standard EMA, seeded with a plain SMA of the first `period` closes so the
 // line doesn't start skewed by treating the very first bar as the seed.
@@ -162,7 +144,6 @@ const DEFAULT_VIEW_EDGE_PAD_BARS = 15;
 export default function CandlestickChart({
   trade,
   candles,
-  apiKey,
   height = 280,
   aspectRatio,
   fillHeight = false,
@@ -174,6 +155,15 @@ export default function CandlestickChart({
   activeIndicators: activeIndicatorsProp,
   onToggleIndicator,
   hideToggleOverlay = false,
+  // Always-on simple moving averages ([{ period, color }]) and extra
+  // markers merged with the trade's own. smaLines is read once at mount.
+  smaLines = NO_SMA_LINES,
+  extraMarkers = NO_EXTRA_MARKERS,
+  // [{ time, color }] drawn as a thin strip along the bottom of the price
+  // pane, aligned with the candles (e.g. market status over time).
+  statusBand = NO_STATUS_BAND,
+  // Extra horizontal levels: [{ price, color, title, dashed }].
+  extraPriceLines = NO_PRICE_LINES,
 }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
@@ -181,49 +171,29 @@ export default function CandlestickChart({
   const markersRef = useRef(null);
   const candlesRef = useRef(candles);
   const emaSeriesRef = useRef({});
-  const alphaTrendSeriesRef = useRef(null);
+  const smaSeriesRef = useRef([]);
+  const statusBandSeriesRef = useRef(null);
   const waveTrendSeriesRef = useRef({});
   const waveTrendMarkersRef = useRef(null);
   const waveTrendCrossesRef = useRef([]);
   const waveTrendCrossColorByTimeRef = useRef(new Map());
-  const squeezeSeriesRef = useRef({});
-  const stageAnalysisSeriesRef = useRef({});
-  const stageAnalysisPointsRef = useRef([]);
-  const disqualifierSeriesRef = useRef(null);
-  const trendTemplateSeriesRef = useRef({});
   const bollingerSeriesRef = useRef({});
   const rsiSeriesRef = useRef({});
-  const vwapSeriesRef = useRef(null);
-  const atrSeriesRef = useRef(null);
-  const benchmarkLoadingRef = useRef(false);
   const orderBlockPrimitiveRef = useRef(null);
   const smcStructureRef = useRef({ breaks: [], orderBlocks: [] });
   const hasFitInitialContentRef = useRef(false);
   const [hoveredBar, setHoveredBar] = useState(null);
-  // State (not a ref) — the Disqualifier checklist panel renders this
-  // directly, and a ref update alone wouldn't trigger the re-render needed
-  // to show it once the async benchmark computation finishes.
-  const [disqualifierPoints, setDisqualifierPoints] = useState([]);
-  // Same reasoning as disqualifierPoints above, for the Trend Template
-  // checklist panel.
-  const [trendTemplatePoints, setTrendTemplatePoints] = useState([]);
-  // Same reasoning as disqualifierPoints above — the ATR legend readout
-  // needs a render to pick up freshly-computed values, which a ref alone
-  // wouldn't trigger.
-  const [atrPoints, setAtrPoints] = useState([]);
   const [uncontrolledActiveEmas, setUncontrolledActiveEmas] = useState({});
   const [uncontrolledActiveIndicators, setUncontrolledActiveIndicators] = useState({});
   const activeEmas = activeEmasProp || uncontrolledActiveEmas;
   const activeIndicators = activeIndicatorsProp || uncontrolledActiveIndicators;
-  const [benchmarkCandles, setBenchmarkCandles] = useState(null);
-  const [benchmarkStatus, setBenchmarkStatus] = useState("idle");
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     // Deliberately not using autoSize here: its built-in ResizeObserver
     // fights with manual pane.setStretchFactor() calls (used below for the
-    // WaveTrend/Squeeze oscillator panes), silently resetting them back to
+    // WaveTrend/RSI oscillator panes), silently resetting them back to
     // their auto-computed proportions. Sizing is instead handled by the
     // ResizeObserver set up further down, which only reacts to actual
     // container size changes.
@@ -258,6 +228,23 @@ export default function CandlestickChart({
     seriesRef.current = series;
     markersRef.current = createSeriesMarkers(series, []);
 
+    smaSeriesRef.current = smaLines.map((def) =>
+      chart.addSeries(LineSeries, {
+        color: def.color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      })
+    );
+
+    statusBandSeriesRef.current = chart.addSeries(HistogramSeries, {
+      priceScaleId: "status-band",
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    chart.priceScale("status-band").applyOptions({ scaleMargins: { top: 0.96, bottom: 0 } });
+
     emaSeriesRef.current = {};
     EMA_DEFINITIONS.forEach((def) => {
       emaSeriesRef.current[def.key] = chart.addSeries(LineSeries, {
@@ -271,16 +258,6 @@ export default function CandlestickChart({
     });
 
     if (enableIndicators) {
-      // AlphaTrend — single ATR trailing-stop line on the main pane.
-      alphaTrendSeriesRef.current = chart.addSeries(LineSeries, {
-        color: "#2DD4BF",
-        lineWidth: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        visible: false,
-      });
-
       // WaveTrend — its own oscillator pane below price.
       const wtOpts = (color, dashed = false) => ({
         color,
@@ -304,85 +281,11 @@ export default function CandlestickChart({
       // whole separate indicator or its unfiltered (non-OB/OS-gated) signal.
       waveTrendMarkersRef.current = createSeriesMarkers(waveTrendSeriesRef.current.wt1, []);
 
-      // Squeeze Momentum — histogram + zero-line state dots, its own pane.
-      squeezeSeriesRef.current = {
-        hist: chart.addSeries(
-          HistogramSeries,
-          { priceLineVisible: false, lastValueVisible: false, visible: false },
-          SQUEEZE_PANE
-        ),
-        cross: chart.addSeries(
-          LineSeries,
-          {
-            lineVisible: false,
-            pointMarkersVisible: true,
-            pointMarkersRadius: 2,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            crosshairMarkerVisible: false,
-            visible: false,
-          },
-          SQUEEZE_PANE
-        ),
-      };
-
       // Smart Money Concepts — order blocks drawn as filled rectangles via
       // a custom pane primitive (a plain line series can't fill a region
       // between two arbitrary price levels).
       orderBlockPrimitiveRef.current = new OrderBlockPrimitive();
       series.attachPrimitive(orderBlockPrimitiveRef.current);
-
-      // Stage Analysis Breakout Strategy (this journal's own strategy, see
-      // the Trading Strategies section) — the 30-week MA colored by slope,
-      // plus the rolling resistance level it breaks out above.
-      stageAnalysisSeriesRef.current = {
-        ma: chart.addSeries(LineSeries, {
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-          visible: false,
-        }),
-        resistance: chart.addSeries(LineSeries, {
-          color: STAGE_RESISTANCE_COLOR,
-          lineWidth: 1,
-          lineStyle: LineStyle.Dotted,
-          lineType: LineType.WithSteps,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-          visible: false,
-        }),
-      };
-
-      // Entry Disqualifier — Noise Filter (this journal's own strategy) —
-      // the same stage MA, colored by slope, drawn separately from the
-      // Stage Analysis toggle above so the two remain independent.
-      disqualifierSeriesRef.current = chart.addSeries(LineSeries, {
-        lineWidth: 2,
-        lineStyle: LineStyle.Dashed,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        visible: false,
-      });
-
-      // Minervini Trend Template (see the Trading Strategies section) —
-      // the 50/150/200-day MAs, brightest-to-dimmest so the stacking order
-      // a healthy uptrend needs is readable at a glance.
-      const trendTemplateLineOpts = (color) => ({
-        color,
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        visible: false,
-      });
-      trendTemplateSeriesRef.current = {
-        ma50: chart.addSeries(LineSeries, trendTemplateLineOpts(TREND_TEMPLATE_MA50_COLOR)),
-        ma150: chart.addSeries(LineSeries, trendTemplateLineOpts(TREND_TEMPLATE_MA150_COLOR)),
-        ma200: chart.addSeries(LineSeries, trendTemplateLineOpts(TREND_TEMPLATE_MA200_COLOR)),
-      };
 
       // Bollinger Bands — a plain main-pane overlay, same treatment as the
       // EMA lines above (upper/lower band + a neutral basis/midline).
@@ -419,38 +322,9 @@ export default function CandlestickChart({
         line: chart.addSeries(LineSeries, rsiOpts("#FACC15"), RSI_PANE),
       };
 
-      // VWAP — a single main-pane overlay, same treatment as the EMA lines
-      // and AlphaTrend above (it's a price-level line, not a bounded
-      // oscillator).
-      vwapSeriesRef.current = chart.addSeries(LineSeries, {
-        color: "#EC4899",
-        lineWidth: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        visible: false,
-      });
-
-      // ATR — its own pane (unbounded price-units scale, unlike RSI's fixed
-      // 0-100 range, so it can't share a pane with something already there).
-      atrSeriesRef.current = chart.addSeries(
-        LineSeries,
-        {
-          color: "#84CC16",
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-          visible: false,
-        },
-        ATR_PANE
-      );
-
       chart.panes()[0]?.setStretchFactor(6);
       chart.panes()[WAVETREND_PANE]?.setStretchFactor(0.0001);
-      chart.panes()[SQUEEZE_PANE]?.setStretchFactor(0.0001);
       chart.panes()[RSI_PANE]?.setStretchFactor(0.0001);
-      chart.panes()[ATR_PANE]?.setStretchFactor(0.0001);
     }
 
     chart.subscribeCrosshairMove((param) => {
@@ -472,19 +346,14 @@ export default function CandlestickChart({
       seriesRef.current = null;
       markersRef.current = null;
       emaSeriesRef.current = {};
-      alphaTrendSeriesRef.current = null;
+      smaSeriesRef.current = [];
+      statusBandSeriesRef.current = null;
       waveTrendSeriesRef.current = {};
       waveTrendMarkersRef.current = null;
       waveTrendCrossColorByTimeRef.current = new Map();
-      squeezeSeriesRef.current = {};
-      stageAnalysisSeriesRef.current = {};
-      disqualifierSeriesRef.current = null;
-      trendTemplateSeriesRef.current = {};
       orderBlockPrimitiveRef.current = null;
       bollingerSeriesRef.current = {};
       rsiSeriesRef.current = {};
-      vwapSeriesRef.current = null;
-      atrSeriesRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -509,80 +378,6 @@ export default function CandlestickChart({
     chart.applyOptions({ timeScale: { timeVisible: isIntraday, secondsVisible: false } });
   }, [candles]);
 
-  // The Entry Disqualifier and Trend Template both need a benchmark
-  // symbol's candles too (market regime/relative strength for the former,
-  // the same relative-strength proxy for the latter) — fetched lazily,
-  // only once either toggle is actually switched on, and cached so
-  // flipping it off/on again or re-opening the chart doesn't refetch.
-  // Shared across every trade's chart since the benchmark itself doesn't
-  // depend on which trade is open.
-  //
-  // benchmarkLoadingRef (not state) guards against a duplicate fetch: if
-  // "loading" were tracked via state and included in this effect's own
-  // dependency array, setting it would re-run the effect mid-fetch and the
-  // stale closure's `cancelled` flag would abort its own in-flight request.
-  useEffect(() => {
-    if (!enableIndicators || (!activeIndicators.entryDisqualifier && !activeIndicators.trendTemplate)) return;
-    if (benchmarkCandles !== null || benchmarkLoadingRef.current) return;
-    if (!apiKey || candles.length === 0) return;
-
-    let cancelled = false;
-    benchmarkLoadingRef.current = true;
-
-    async function load() {
-      setBenchmarkStatus("loading");
-      const from = candles[0].time;
-      const to = candles[candles.length - 1].time;
-      const isOpen = trade.status !== "closed";
-      const cacheKey = `benchmark:${BENCHMARK_SYMBOL}`;
-
-      const cached = getCachedCandles(cacheKey, { from, to, isOpen });
-      if (cached) {
-        if (!cancelled) {
-          setBenchmarkCandles(cached);
-          setBenchmarkStatus("ready");
-        }
-        benchmarkLoadingRef.current = false;
-        return;
-      }
-
-      const { candles: bench, error } = await fetchDailyCandles({
-        symbol: BENCHMARK_SYMBOL,
-        apiKey,
-        startDate: from,
-        endDate: to,
-      });
-
-      if (cancelled) {
-        benchmarkLoadingRef.current = false;
-        return;
-      }
-      if (error) {
-        setBenchmarkCandles([]);
-        setBenchmarkStatus("error");
-        benchmarkLoadingRef.current = false;
-        return;
-      }
-      setCachedCandles(cacheKey, { from, to, candles: bench });
-      setBenchmarkCandles(bench);
-      setBenchmarkStatus("ready");
-      benchmarkLoadingRef.current = false;
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    enableIndicators,
-    activeIndicators.entryDisqualifier,
-    activeIndicators.trendTemplate,
-    benchmarkCandles,
-    apiKey,
-    candles,
-    trade.status,
-  ]);
-
   // Push data/markers/price lines whenever the candles or trade plan change.
   useEffect(() => {
     const series = seriesRef.current;
@@ -595,13 +390,11 @@ export default function CandlestickChart({
     EMA_DEFINITIONS.forEach((def) => {
       emaSeriesRef.current[def.key]?.setData(computeEMA(candles, def.period));
     });
+    smaSeriesRef.current.forEach((s, i) => s.setData(computeSMA(candles, smaLines[i].period)));
+    statusBandSeriesRef.current?.setData(statusBand.map((b) => ({ time: b.time, value: 1, color: b.color })));
 
     let smcBreaks = [];
-    let disqPointsForMarkers = [];
-    let trendTemplatePointsForPanel = [];
     if (enableIndicators) {
-      alphaTrendSeriesRef.current?.setData(computeAlphaTrend(candles));
-
       const wt = computeWaveTrend(candles);
       const wtSeries = waveTrendSeriesRef.current;
       wtSeries.zero?.setData(flatLine(candles, 0));
@@ -642,64 +435,10 @@ export default function CandlestickChart({
       updateWaveTrendCrossMarkers(activeIndicators.waveTrend);
       applyWaveTrendCandleColors(activeIndicators.waveTrend);
 
-      const sq = computeSqueezeMomentum(candles);
-      squeezeSeriesRef.current.hist?.setData(
-        sq.map((p) => ({ time: p.time, value: p.value, color: p.barColor }))
-      );
-      const stateColor = { on: "#D98B3F", off: "#6FCBA6", none: COLORS.parchmentFaint };
-      squeezeSeriesRef.current.cross?.setData(
-        sq.map((p) => ({ time: p.time, value: 0, color: stateColor[p.state] }))
-      );
-
       const smc = computeSmcStructure(candles);
       smcBreaks = smc.breaks;
       smcStructureRef.current = smc;
       updateOrderBlockBoxes(activeIndicators.smc);
-
-      const stagePoints = computeStageAnalysis(candles);
-      stageAnalysisPointsRef.current = stagePoints;
-      stageAnalysisSeriesRef.current.ma?.setData(
-        stagePoints.map((p) => ({
-          time: p.time,
-          value: p.ma,
-          color: p.maRising == null ? COLORS.parchmentFaint : p.maRising ? STAGE_BREAKOUT_COLOR : STAGE_BREAKDOWN_COLOR,
-        }))
-      );
-      stageAnalysisSeriesRef.current.resistance?.setData(
-        stagePoints.filter((p) => p.resistance != null).map((p) => ({ time: p.time, value: p.resistance }))
-      );
-
-      if (activeIndicators.entryDisqualifier && benchmarkCandles && benchmarkCandles.length > 0) {
-        disqPointsForMarkers = computeEntryDisqualifier(candles, benchmarkCandles);
-        disqualifierSeriesRef.current?.setData(
-          disqPointsForMarkers.map((p) => ({
-            time: p.time,
-            value: p.ma,
-            color: p.maRising ? STAGE_BREAKOUT_COLOR : STAGE_BREAKDOWN_COLOR,
-          }))
-        );
-      } else {
-        disqualifierSeriesRef.current?.setData([]);
-      }
-      setDisqualifierPoints(disqPointsForMarkers);
-
-      if (activeIndicators.trendTemplate && benchmarkCandles && benchmarkCandles.length > 0) {
-        trendTemplatePointsForPanel = computeTrendTemplate(candles, benchmarkCandles);
-        trendTemplateSeriesRef.current.ma50?.setData(
-          trendTemplatePointsForPanel.map((p) => ({ time: p.time, value: p.ma50 }))
-        );
-        trendTemplateSeriesRef.current.ma150?.setData(
-          trendTemplatePointsForPanel.map((p) => ({ time: p.time, value: p.ma150 }))
-        );
-        trendTemplateSeriesRef.current.ma200?.setData(
-          trendTemplatePointsForPanel.map((p) => ({ time: p.time, value: p.ma200 }))
-        );
-      } else {
-        trendTemplateSeriesRef.current.ma50?.setData([]);
-        trendTemplateSeriesRef.current.ma150?.setData([]);
-        trendTemplateSeriesRef.current.ma200?.setData([]);
-      }
-      setTrendTemplatePoints(trendTemplatePointsForPanel);
 
       const bb = computeBollingerBands(candles);
       bollingerSeriesRef.current.upper?.setData(
@@ -719,17 +458,6 @@ export default function CandlestickChart({
       rsiSeriesRef.current.line?.setData(
         rsiPoints.filter((p) => p.value != null).map((p) => ({ time: p.time, value: p.value }))
       );
-
-      const vwapPoints = computeVWAP(candles);
-      vwapSeriesRef.current?.setData(
-        vwapPoints.filter((p) => p.value != null).map((p) => ({ time: p.time, value: p.value }))
-      );
-
-      const newAtrPoints = computeATR(candles);
-      setAtrPoints(newAtrPoints);
-      atrSeriesRef.current?.setData(
-        newAtrPoints.filter((p) => p.value != null).map((p) => ({ time: p.time, value: p.value }))
-      );
     }
 
     const priceLine = (price, color, title, dashed = false) => {
@@ -748,6 +476,7 @@ export default function CandlestickChart({
     priceLine(trade.stopPrice, COLORS.lossBright, "stop", true);
     priceLine(trade.target1, COLORS.gainBright, "target 1", true);
     priceLine(trade.target2, COLORS.gainBright, "target 2", true);
+    extraPriceLines.forEach((l) => priceLine(l.price, l.color, l.title, l.dashed));
 
     const tradeMarkers = [
       // Only a real logged trade has an entry — a watchlist ticker (see
@@ -783,30 +512,7 @@ export default function CandlestickChart({
         }))
       : [];
 
-    const stageMarkers = activeIndicators.stageAnalysis
-      ? stageAnalysisPointsRef.current
-          .filter((p) => p.stage2Breakout || p.stageBreakdown)
-          .map((p) => ({
-            time: p.time,
-            position: p.stage2Breakout ? "belowBar" : "aboveBar",
-            color: p.stage2Breakout ? STAGE_BREAKOUT_COLOR : STAGE_BREAKDOWN_COLOR,
-            shape: p.stage2Breakout ? "arrowUp" : "arrowDown",
-            text: p.stage2Breakout ? "Stage 2" : "Stage 3/4",
-          }))
-      : [];
-
-    const disqMarkers = activeIndicators.entryDisqualifier
-      ? disqPointsForMarkers
-          .filter((p) => p.noiseFree)
-          .map((p) => ({
-            time: p.time,
-            position: "belowBar",
-            color: STAGE_BREAKOUT_COLOR,
-            shape: "circle",
-          }))
-      : [];
-
-    const markers = [...tradeMarkers, ...smcMarkers, ...stageMarkers, ...disqMarkers].sort((a, b) =>
+    const markers = [...tradeMarkers, ...smcMarkers, ...extraMarkers].sort((a, b) =>
       a.time < b.time ? -1 : a.time > b.time ? 1 : 0
     );
 
@@ -846,11 +552,10 @@ export default function CandlestickChart({
     trade.exits,
     enableIndicators,
     activeIndicators.smc,
-    activeIndicators.stageAnalysis,
-    activeIndicators.entryDisqualifier,
-    activeIndicators.trendTemplate,
     activeIndicators.waveTrend,
-    benchmarkCandles,
+    extraMarkers,
+    statusBand,
+    extraPriceLines,
   ]);
 
   // Show/hide EMA lines as the user checks/unchecks them, without touching
@@ -867,35 +572,16 @@ export default function CandlestickChart({
     const chart = chartRef.current;
     if (!chart) return;
 
-    alphaTrendSeriesRef.current?.applyOptions({ visible: !!activeIndicators.alphaTrend });
-
-    const stageVisible = !!activeIndicators.stageAnalysis;
-    Object.values(stageAnalysisSeriesRef.current).forEach((s) => s?.applyOptions({ visible: stageVisible }));
-
-    disqualifierSeriesRef.current?.applyOptions({ visible: !!activeIndicators.entryDisqualifier });
-
-    const trendTemplateVisible = !!activeIndicators.trendTemplate;
-    Object.values(trendTemplateSeriesRef.current).forEach((s) =>
-      s?.applyOptions({ visible: trendTemplateVisible })
-    );
-
     const wtVisible = !!activeIndicators.waveTrend;
-    const sqVisible = !!activeIndicators.squeeze;
     Object.values(waveTrendSeriesRef.current).forEach((s) => s?.applyOptions({ visible: wtVisible }));
     updateWaveTrendCrossMarkers(wtVisible);
     applyWaveTrendCandleColors(wtVisible);
-    Object.values(squeezeSeriesRef.current).forEach((s) => s?.applyOptions({ visible: sqVisible }));
 
     const bbVisible = !!activeIndicators.bollingerBands;
     Object.values(bollingerSeriesRef.current).forEach((s) => s?.applyOptions({ visible: bbVisible }));
 
     const rsiVisible = !!activeIndicators.rsi;
     Object.values(rsiSeriesRef.current).forEach((s) => s?.applyOptions({ visible: rsiVisible }));
-
-    vwapSeriesRef.current?.applyOptions({ visible: !!activeIndicators.vwap });
-
-    const atrVisible = !!activeIndicators.atr;
-    atrSeriesRef.current?.applyOptions({ visible: atrVisible });
 
     // Setting all panes' stretch factors together in one pass, rather than
     // calling pane.setHeight() per pane: setHeight() on a later pane was
@@ -905,14 +591,12 @@ export default function CandlestickChart({
     const panes = chart.panes();
     panes[0]?.setStretchFactor(6);
     panes[WAVETREND_PANE]?.setStretchFactor(wtVisible ? 2 : 0.0001);
-    panes[SQUEEZE_PANE]?.setStretchFactor(sqVisible ? 2 : 0.0001);
     panes[RSI_PANE]?.setStretchFactor(rsiVisible ? 2 : 0.0001);
-    panes[ATR_PANE]?.setStretchFactor(atrVisible ? 2 : 0.0001);
 
     updateOrderBlockBoxes(activeIndicators.smc);
-    // SMC and Stage Analysis markers are merged into the main markers set
-    // above and react to activeIndicators.smc / .stageAnalysis there, since
-    // they share the candlestick series' single markers primitive.
+    // SMC markers are merged into the main markers set above and react to
+    // activeIndicators.smc there, since they share the candlestick series'
+    // single markers primitive.
   }, [activeIndicators]);
 
   function updateOrderBlockBoxes(visible) {
@@ -984,17 +668,6 @@ export default function CandlestickChart({
     chartRef.current?.timeScale().fitContent();
   }
 
-  const activeDisqPoint = hoveredBar
-    ? disqualifierPoints.find((p) => p.time === hoveredBar.time) ?? null
-    : null;
-  const activeTrendTemplatePoint = hoveredBar
-    ? trendTemplatePoints.find((p) => p.time === hoveredBar.time) ?? null
-    : null;
-  const activeAtrValue =
-    enableIndicators && activeIndicators.atr && hoveredBar
-      ? atrPoints.find((p) => p.time === hoveredBar.time)?.value ?? null
-      : null;
-
   return (
     <div
       className={`relative group${fillHeight ? " h-full" : ""}`}
@@ -1009,7 +682,7 @@ export default function CandlestickChart({
       />
 
       <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1.5 max-w-[calc(100%-5rem)]">
-        {hoveredBar && <OhlcLegend bar={hoveredBar} atrValue={activeAtrValue} />}
+        {hoveredBar && <OhlcLegend bar={hoveredBar} />}
         {enableIndicators && !hideToggleOverlay && (
           <>
             <div className="flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -1052,136 +725,6 @@ export default function CandlestickChart({
           ⤢
         </ChartButton>
       </div>
-
-      {enableIndicators && activeIndicators.entryDisqualifier && (
-        <div className="absolute bottom-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
-          <DisqualifierPanel point={activeDisqPoint} status={benchmarkStatus} />
-        </div>
-      )}
-
-      {enableIndicators && activeIndicators.trendTemplate && (
-        <div className="absolute bottom-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
-          <TrendTemplatePanel point={activeTrendTemplatePoint} status={benchmarkStatus} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-const DISQUALIFIER_ROWS = [
-  ["flagWrongStage", "Wrong stage (not Stage 2)"],
-  ["flagMarketWeak", "Market not Stage 2"],
-  ["flagWeakRS", "Underperforming benchmark"],
-  ["flagExtended", "Extended (chasing)"],
-  ["flagChoppy", "Choppy / no real trend"],
-  ["flagVolumeDry", "Volume drying up"],
-  ["flagWideBase", "Base not tightening"],
-];
-
-function DisqualifierPanel({ point, status }) {
-  return (
-    <div className="w-60 rounded-lg border border-line bg-surface/95 font-mono text-[11px] overflow-hidden">
-      <div className="flex items-center justify-between px-2.5 py-1.5 bg-surface-alt">
-        <span className="text-parchment-faint uppercase tracking-wide">Disqualifiers</span>
-        {point && <span className="text-parchment">{point.flagCount} active</span>}
-      </div>
-
-      {status === "loading" && (
-        <p className="px-2.5 py-2 text-parchment-faint">Loading benchmark ({BENCHMARK_SYMBOL})…</p>
-      )}
-      {status === "error" && (
-        <p className="px-2.5 py-2 text-loss-bright">Couldn&apos;t load benchmark data.</p>
-      )}
-      {status === "ready" && !point && (
-        <p className="px-2.5 py-2 text-parchment-faint">Not enough history on this bar yet.</p>
-      )}
-      {status === "ready" &&
-        point &&
-        DISQUALIFIER_ROWS.map(([key, label]) => {
-          const active = point.flags[key];
-          return (
-            <div
-              key={key}
-              className={`flex items-center justify-between px-2.5 py-1 border-t border-line ${
-                active ? "bg-loss/10" : ""
-              }`}
-            >
-              <span className="text-parchment-dim">{label}</span>
-              <span className={active ? "text-loss-bright" : "text-gain-bright"}>
-                {active ? "SKIP" : "clear"}
-              </span>
-            </div>
-          );
-        })}
-
-      {status === "ready" && point && (
-        <div className="px-2.5 py-1.5 border-t border-line bg-surface-alt text-center">
-          <span className={point.noiseFree ? "text-gain-bright" : "text-parchment"}>
-            {point.noiseFree ? "No disqualifiers" : `${point.flagCount} reason(s) to skip`}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// checks.relativeStrengthRising is a benchmark-relative-trend proxy, not a
-// true percentile RS Rank — see lib/indicatorMath.js's computeTrendTemplate
-// and the Minervini Trend Template strategy write-up for why.
-const TREND_TEMPLATE_ROWS = [
-  ["priceAboveMa150And200", "Price above 150 & 200-day MA"],
-  ["ma150AboveMa200", "150-day MA above 200-day MA"],
-  ["ma200Rising", "200-day MA trending up"],
-  ["ma50AboveMa150And200", "50-day MA above 150 & 200-day"],
-  ["priceAboveMa50", "Price above 50-day MA"],
-  ["above30PctFromLow", "30%+ above 52-week low"],
-  ["within25PctOfHigh", "Within 25% of 52-week high"],
-  ["relativeStrengthRising", "Relative strength vs SPY rising"],
-];
-
-function TrendTemplatePanel({ point, status }) {
-  return (
-    <div className="w-64 rounded-lg border border-line bg-surface/95 font-mono text-[11px] overflow-hidden">
-      <div className="flex items-center justify-between px-2.5 py-1.5 bg-surface-alt">
-        <span className="text-parchment-faint uppercase tracking-wide">Trend Template</span>
-        {point && <span className="text-parchment">{point.passCount}/8</span>}
-      </div>
-
-      {status === "loading" && (
-        <p className="px-2.5 py-2 text-parchment-faint">Loading benchmark ({BENCHMARK_SYMBOL})…</p>
-      )}
-      {status === "error" && (
-        <p className="px-2.5 py-2 text-loss-bright">Couldn&apos;t load benchmark data.</p>
-      )}
-      {status === "ready" && !point && (
-        <p className="px-2.5 py-2 text-parchment-faint">Not enough history on this bar yet.</p>
-      )}
-      {status === "ready" &&
-        point &&
-        TREND_TEMPLATE_ROWS.map(([key, label]) => {
-          const passed = point.checks[key];
-          return (
-            <div
-              key={key}
-              className={`flex items-center justify-between px-2.5 py-1 border-t border-line ${
-                passed ? "" : "bg-loss/10"
-              }`}
-            >
-              <span className="text-parchment-dim">{label}</span>
-              <span className={passed ? "text-gain-bright" : "text-loss-bright"}>
-                {passed ? "pass" : "fail"}
-              </span>
-            </div>
-          );
-        })}
-
-      {status === "ready" && point && (
-        <div className="px-2.5 py-1.5 border-t border-line bg-surface-alt text-center">
-          <span className={point.qualifies ? "text-gain-bright" : "text-parchment"}>
-            {point.qualifies ? "Qualifies — all 8 pass" : `${point.passCount} of 8 conditions met`}
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -1220,7 +763,7 @@ function formatBarTime(time) {
   });
 }
 
-function OhlcLegend({ bar, atrValue }) {
+function OhlcLegend({ bar }) {
   const fmt = (v) => Number(v).toFixed(2);
   const up = bar.close >= bar.open;
 
@@ -1239,11 +782,6 @@ function OhlcLegend({ bar, atrValue }) {
       <span className="text-parchment-faint">
         C <span className={up ? "text-gain-bright" : "text-loss-bright"}>{fmt(bar.close)}</span>
       </span>
-      {atrValue != null && (
-        <span className="text-parchment-faint">
-          ATR(14) <span style={{ color: "#84CC16" }}>${fmt(atrValue)}</span>
-        </span>
-      )}
     </div>
   );
 }

@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { STRATEGIES, getStrategy } from "@/content/strategies";
 import IndicatorTabs from "@/components/IndicatorTabs";
 
 export function generateStaticParams() {
-  return STRATEGIES.map((s) => ({ slug: s.slug }));
+  return STRATEGIES.filter((s) => s.Content).map((s) => ({ slug: s.slug }));
 }
 
 export default function StrategyDetailPage({ params }) {
   const strategy = getStrategy(params.slug);
   if (!strategy) notFound();
+  if (!strategy.Content) redirect(strategy.href);
 
   const { title, author, category, Content, pineScript, pineLicense } = strategy;
 

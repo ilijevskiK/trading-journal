@@ -1,112 +1,107 @@
-"use client";
+import Tile from "@/components/Tile";
+import {
+  MarketStatusIcon,
+  CurrentEarningsIcon,
+  AnnualEarningsIcon,
+  NewHighsIcon,
+  SupplyDemandIcon,
+  LeadershipIcon,
+  InstitutionalIcon,
+} from "@/components/NavIcons";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { STRATEGIES } from "@/content/strategies";
+const SECTIONS = [
+  {
+    href: "/strategies/market-status",
+    label: "Market Status",
+    Icon: MarketStatusIcon,
+    description: "Is the market in an uptrend? (M)",
+  },
+  {
+    href: "/strategies/current-earnings",
+    label: "Current Earnings",
+    Icon: CurrentEarningsIcon,
+    description: "Is quarterly earnings growth strong? (C)",
+  },
+  {
+    href: "/strategies/annual-earnings",
+    label: "Annual Earnings",
+    Icon: AnnualEarningsIcon,
+    description: "Has it grown every year? (A)",
+  },
+  {
+    href: "/strategies/new-highs",
+    label: "New Highs",
+    Icon: NewHighsIcon,
+    description: "Breaking out to a new high? (N)",
+  },
+  {
+    href: "/strategies/supply-demand",
+    label: "Supply & Demand",
+    Icon: SupplyDemandIcon,
+    description: "Are buyers in control? (S)",
+  },
+  {
+    href: "/strategies/leadership",
+    label: "Leadership",
+    Icon: LeadershipIcon,
+    description: "Leader or laggard? (L)",
+  },
+  {
+    href: "/strategies/institutional",
+    label: "Institutions",
+    Icon: InstitutionalIcon,
+    description: "Are funds buying it? (I)",
+  },
+];
+
+const LETTERS = [
+  { letter: "C", meaning: "Current quarterly earnings", covered: "Current Earnings" },
+  { letter: "A", meaning: "Annual earnings growth", covered: "Annual Earnings" },
+  { letter: "N", meaning: "New product, management, or price high", covered: "New Highs" },
+  { letter: "S", meaning: "Supply and demand", covered: "Supply & Demand" },
+  { letter: "L", meaning: "Leader or laggard", covered: "Leadership" },
+  { letter: "I", meaning: "Institutional sponsorship", covered: "Institutions" },
+  { letter: "M", meaning: "Market direction", covered: "Market Status" },
+];
 
 export default function StrategiesPage() {
-  const [activeCategory, setActiveCategory] = useState(null);
-
-  const categories = useMemo(() => {
-    const seen = new Set();
-    const list = [];
-    for (const strategy of STRATEGIES) {
-      if (!seen.has(strategy.category)) {
-        seen.add(strategy.category);
-        list.push(strategy.category);
-      }
-    }
-    return list;
-  }, []);
-
-  const visibleStrategies = activeCategory
-    ? STRATEGIES.filter((strategy) => strategy.category === activeCategory)
-    : STRATEGIES;
-
   return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <h1 className="font-display text-3xl text-parchment">Trading Strategies</h1>
-        <span className="font-mono text-xs text-parchment-faint">
-          {visibleStrategies.length} of {STRATEGIES.length} strateg
-          {STRATEGIES.length === 1 ? "y" : "ies"}
-        </span>
-      </div>
-      <p className="text-xs text-parchment-faint mt-2 max-w-lg">
-        Trading systems and setups worth actually using — what to look for,
-        the entry/exit rules, and how to manage risk. Curated, not
-        user-editable.
+    <div className="max-w-5xl mx-auto">
+      <h1 className="font-display text-3xl text-parchment">CAN SLIM</h1>
+      <p className="text-xs text-parchment-faint mt-2 max-w-2xl">
+        William O&apos;Neil&apos;s growth-stock system, from <em>How to Make Money in Stocks</em>. Seven
+        traits that the biggest winning stocks shared before their big moves, plus strict buy and sell
+        rules.
       </p>
+      <div className="rule-divider mt-4 mb-8" />
 
-      {categories.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-4">
-          <button
-            type="button"
-            onClick={() => setActiveCategory(null)}
-            className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full border transition-colors ${
-              activeCategory === null
-                ? "border-gold-dim text-gold-bright bg-surface-alt"
-                : "border-line text-parchment-faint hover:text-parchment hover:border-gold-dim/60"
-            }`}
-          >
-            All
-          </button>
-          {categories.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() => setActiveCategory(category)}
-              className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full border transition-colors ${
-                activeCategory === category
-                  ? "border-gold-dim text-gold-bright bg-surface-alt"
-                  : "border-line text-parchment-faint hover:text-parchment hover:border-gold-dim/60"
+      <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+        {SECTIONS.map((section) => (
+          <Tile key={section.href} {...section} />
+        ))}
+      </nav>
+
+      <section className="mt-10">
+        <h2 className="text-xs uppercase tracking-wide text-parchment-faint mb-3">The seven letters</h2>
+        <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {LETTERS.map(({ letter, meaning, covered }) => (
+            <li
+              key={letter}
+              className={`flex items-baseline gap-3 rounded-md border px-3 py-2 ${
+                covered ? "border-gold-dim bg-surface" : "border-line"
               }`}
             >
-              {category}
-            </button>
+              <span className={`font-display text-xl ${covered ? "text-gold-bright" : "text-parchment-faint"}`}>
+                {letter}
+              </span>
+              <span className="text-xs text-parchment-dim">
+                {meaning}
+                {covered && <span className="block text-[10px] text-gold mt-0.5">→ {covered}</span>}
+              </span>
+            </li>
           ))}
-        </div>
-      )}
-
-      <div className="rule-divider mt-4 mb-6" />
-
-      {visibleStrategies.length === 0 ? (
-        <div className="border border-line rounded-lg bg-surface px-6 py-10 text-center text-sm text-parchment-faint">
-          {STRATEGIES.length === 0
-            ? "No strategies written up yet."
-            : "No strategies in this category."}
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {visibleStrategies.map((strategy) => (
-            <Link
-              key={strategy.slug}
-              href={`/strategies/${strategy.slug}`}
-              className="block border border-line rounded-lg bg-surface px-4 py-3 hover:bg-surface-alt/50 hover:border-gold-dim transition-colors"
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                <span className="font-mono text-sm text-parchment shrink-0">
-                  {strategy.title}
-                </span>
-                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border border-gold-dim text-gold-bright shrink-0">
-                  {strategy.category}
-                </span>
-                <span className="text-xs text-parchment-faint truncate hidden sm:inline">
-                  {strategy.summary}
-                </span>
-              </div>
-              <p className="text-xs text-parchment-faint mt-1.5 sm:hidden">
-                {strategy.summary}
-              </p>
-              {strategy.author && (
-                <p className="text-[11px] text-parchment-faint mt-1">
-                  by {strategy.author}
-                </p>
-              )}
-            </Link>
-          ))}
-        </div>
-      )}
+        </ol>
+      </section>
     </div>
   );
 }
