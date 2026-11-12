@@ -1,0 +1,29 @@
+# Daily CAN SLIM screener (scripts/run-screener.mjs). Runs after midnight
+# New York time, Tuesday to Saturday, once the previous session's prices
+# are out on Massive's free plan. Run it by hand from the Actions tab for
+# the first, hour-long backfill.
+#
+# Needs repository secrets DATABASE_URL, MASSIVE_API_KEY and SEC_USER_AGENT.
+name: CAN SLIM screener
+
+on:
+  schedule:
+    - cron: "0 7 * * 2-6"
+  workflow_dispatch:
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run screener
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}

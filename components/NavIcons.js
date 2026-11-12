@@ -99,6 +99,14 @@ export function VideosIcon(props) {
   );
 }
 
+export function ScreenerIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 5 L20.5 5 L14 12.5 L14 18.5 L10 20 L10 12.5 Z" />
+    </Icon>
+  );
+}
+
 export function MarketStatusIcon(props) {
   return (
     <Icon {...props}>

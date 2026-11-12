@@ -1,5 +1,6 @@
 import Tile from "@/components/Tile";
 import {
+  ScreenerIcon,
   MarketStatusIcon,
   CurrentEarningsIcon,
   AnnualEarningsIcon,
@@ -10,6 +11,12 @@ import {
 } from "@/components/NavIcons";
 
 const SECTIONS = [
+  {
+    href: "/strategies/screener",
+    label: "Screener",
+    Icon: ScreenerIcon,
+    description: "Today's candidates from every US stock",
+  },
   {
     href: "/strategies/market-status",
     label: "Market Status",

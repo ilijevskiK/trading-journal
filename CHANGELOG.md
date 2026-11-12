@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- **CAN SLIM Screener** — a new first tile in the CAN SLIM hub. Every
+  trading day, every US company is run through the price checks: $15+,
+  at least $10M traded a day, RS Rating 80+ and within 15% of its 52-week
+  high. The page shows how many stocks survived each step and the ones
+  that passed, linked to their C/A/N/S/L/I pages. Built by a daily GitHub
+  Action (`scripts/run-screener.mjs`) that keeps a year of prices in the
+  database, adjusted for stock splits, and now also builds the daily RS
+  Ratings, so the Leadership page no longer waits for them. Needs
+  `db/0008_screener.sql` and three repository secrets (see README).
 - **Tag trades as CAN SLIM** — "CAN SLIM" is now an option in the
   strategy dropdown on New Trade and in each Journal trade, linking to the
   CAN SLIM hub; Breakdowns' "By strategy" groups those trades under it.
