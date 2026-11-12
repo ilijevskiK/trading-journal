@@ -67,6 +67,25 @@ npm run build
 npm run start
 ```
 
+### CAN SLIM screener job
+
+The Screener page (and each day's RS Ratings) is built by a daily job,
+`scripts/run-screener.mjs`, not by the web app: it downloads every US
+stock's prices from Massive, which is far too slow for a page request.
+
+1. Run `db/0008_screener.sql` once.
+2. In the GitHub repository, add the secrets `DATABASE_URL`,
+   `MASSIVE_API_KEY` and `SEC_USER_AGENT` (Settings → Secrets and
+   variables → Actions), with the same values as the deployed app.
+3. Run the "CAN SLIM screener" workflow once by hand from the Actions tab.
+   The first run backfills a year of prices and takes about an hour at
+   the free plan's 5 requests a minute; after that it runs by itself
+   Tuesday to Saturday at 07:00 UTC and takes a minute or two.
+
+It can also be run locally with the same three variables set:
+`npm run screener`. GitHub pauses scheduled workflows in repositories
+with no activity for 60 days; re-enable it from the Actions tab if so.
+
 ## Data model
 
 Trades/exits/deposits/settings live in Postgres (`db/0002_app_tables.sql`
