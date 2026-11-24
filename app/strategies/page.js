@@ -8,6 +8,8 @@ import {
   SupplyDemandIcon,
   LeadershipIcon,
   InstitutionalIcon,
+  GroupsIcon,
+  CompositeIcon,
 } from "@/components/NavIcons";
 
 const SECTIONS = [
@@ -58,6 +60,18 @@ const SECTIONS = [
     label: "Institutions",
     Icon: InstitutionalIcon,
     description: "Are funds buying it? (I)",
+  },
+  {
+    href: "/strategies/leading-groups",
+    label: "Leading Groups",
+    Icon: GroupsIcon,
+    description: "Which industries are leading? (L)",
+  },
+  {
+    href: "/strategies/composite",
+    label: "Composite Screener",
+    Icon: CompositeIcon,
+    description: "Every stock on one 1-99 rating",
   },
 ];
 

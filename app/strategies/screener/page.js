@@ -6,8 +6,11 @@ import { getScreenerAction } from "@/contexts/screenerActions";
 import { SCREENER_RULES } from "@/lib/screener";
 import { LETTER_LINKS } from "@/components/canslim/letterLinks";
 import { formatDate, formatMoney } from "@/components/canslim/LetterSection";
+import { SP500_COMPANIES, SP500_LAST_UPDATED } from "@/content/sp500";
+import { LEADING_GROUP_RANKS } from "@/lib/industries";
 
 const STALE_AFTER_DAYS = 4; // a long weekend plus a day
+const SP500_TICKERS = new Set(SP500_COMPANIES.map((c) => c.ticker));
 
 const SORTS = {
   rs: { label: "RS Rating", compare: (a, b) => b.rsRating - a.rsRating || a.pctBelowHigh - b.pctBelowHigh },
@@ -24,6 +27,9 @@ const FUNNEL_STEPS = [
 export default function ScreenerPage() {
   const [state, setState] = useState({ loading: true, data: null, error: null });
   const [sort, setSort] = useState("rs");
+  const [newOnly, setNewOnly] = useState(false);
+  const [leadingOnly, setLeadingOnly] = useState(false);
+  const [sp500Only, setSp500Only] = useState(false);
 
   useEffect(() => {
     getScreenerAction()
@@ -31,10 +37,21 @@ export default function ScreenerPage() {
       .catch(() => setState({ loading: false, data: null, error: "Couldn't load the screener." }));
   }, []);
 
-  const stocks = useMemo(
-    () => (state.data?.stocks ? [...state.data.stocks].sort(SORTS[sort].compare) : []),
-    [state.data, sort]
+  const newCount = useMemo(() => (state.data?.stocks ?? []).filter((s) => s.isNew).length, [state.data]);
+  const leadingCount = useMemo(
+    () => (state.data?.stocks ?? []).filter((s) => s.group && s.group.rank <= LEADING_GROUP_RANKS).length,
+    [state.data]
   );
+  const sp500Count = useMemo(() => (state.data?.stocks ?? []).filter((s) => SP500_TICKERS.has(s.ticker)).length, [state.data]);
+  const stocks = useMemo(() => {
+    const list = (state.data?.stocks ?? []).filter(
+      (s) =>
+        (!newOnly || s.isNew) &&
+        (!leadingOnly || (s.group && s.group.rank <= LEADING_GROUP_RANKS)) &&
+        (!sp500Only || SP500_TICKERS.has(s.ticker))
+    );
+    return list.sort(SORTS[sort].compare);
+  }, [state.data, sort, newOnly, leadingOnly, sp500Only]);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -81,14 +98,53 @@ export default function ScreenerPage() {
                 {label}
               </button>
             ))}
+            <span className="text-parchment-faint ml-3 mr-1">Show</span>
+            <button
+              onClick={() => setNewOnly((v) => !v)}
+              aria-pressed={newOnly}
+              className={`px-2.5 py-1 rounded-md border transition-colors ${
+                newOnly ? "border-gold-dim text-gold-bright" : "border-line text-parchment-dim hover:text-parchment"
+              }`}
+            >
+              New only ({newCount})
+            </button>
+            <button
+              onClick={() => setLeadingOnly((v) => !v)}
+              aria-pressed={leadingOnly}
+              title={`Stocks whose industry group ranks in the top ${LEADING_GROUP_RANKS} on Leading Groups`}
+              className={`px-2.5 py-1 rounded-md border transition-colors ${
+                leadingOnly ? "border-gold-dim text-gold-bright" : "border-line text-parchment-dim hover:text-parchment"
+              }`}
+            >
+              Top {LEADING_GROUP_RANKS} groups ({leadingCount})
+            </button>
+            <button
+              onClick={() => setSp500Only((v) => !v)}
+              aria-pressed={sp500Only}
+              title="Only stocks in the S&P 500 index"
+              className={`px-2.5 py-1 rounded-md border transition-colors ${
+                sp500Only ? "border-gold-dim text-gold-bright" : "border-line text-parchment-dim hover:text-parchment"
+              }`}
+            >
+              S&amp;P 500 only ({sp500Count})
+            </button>
           </div>
           {stocks.length ? (
             <StockTable stocks={stocks} />
+          ) : newOnly || leadingOnly || sp500Only ? (
+            <p className="text-sm text-parchment-dim">No stock on today&apos;s list matches the filters you turned on.</p>
           ) : (
             <p className="text-sm text-parchment-dim">
               No stock passes every check today. That usually means the market is weak.
             </p>
           )}
+          <p className="text-[10px] text-parchment-faint mt-4 max-w-2xl">
+            <span className="text-gold-bright">New</span> means it passed today but not on the previous run. Exchange
+            is as the SEC lists it, filled in by the next daily run. Group is the stock&apos;s industry group and its rank on{" "}
+            <Link href="/strategies/leading-groups" className="text-gold-bright hover:underline">Leading Groups</Link>{" "}
+            (gold = top {LEADING_GROUP_RANKS}). S&amp;P 500 membership comes from a static list,
+            last updated {formatDate(SP500_LAST_UPDATED)}, so recent index changes may be missing.
+          </p>
         </>
       )}
     </div>
@@ -120,6 +176,10 @@ function Funnel({ funnel }) {
   );
 }
 
+function Badge({ children }) {
+  return <span className="px-1.5 py-px rounded border border-line text-[10px] text-parchment-dim">{children}</span>;
+}
+
 function StockTable({ stocks }) {
   return (
     <div className="overflow-x-auto">
@@ -128,6 +188,8 @@ function StockTable({ stocks }) {
           <tr className="text-left text-[10px] uppercase tracking-wide text-parchment-faint border-b border-line *:px-2 first:*:pl-0 last:*:pr-0">
             <th className="pb-2 font-normal font-body">Ticker</th>
             <th className="pb-2 font-normal font-body">Company</th>
+            <th className="pb-2 font-normal font-body">Listing</th>
+            <th className="pb-2 font-normal font-body" title="Industry group and its rank on Leading Groups">Group</th>
             <th className="pb-2 font-normal font-body text-right">Price</th>
             <th className="pb-2 font-normal font-body text-right">RS</th>
             <th className="pb-2 font-normal font-body text-right">From high</th>
@@ -145,9 +207,36 @@ function StockTable({ stocks }) {
                 >
                   {s.ticker}
                 </Link>
+                {s.isNew && (
+                  <span
+                    title="Passed today, not on the previous run"
+                    className="ml-1.5 px-1 py-px rounded border border-gold-dim text-[9px] uppercase tracking-wide text-gold-bright font-body"
+                  >
+                    New
+                  </span>
+                )}
               </td>
               <td className="py-2 font-body max-w-[16rem] truncate" title={s.name ?? ""}>
                 {s.name ?? "—"}
+              </td>
+              <td className="py-2 font-body">
+                <span className="inline-flex gap-1">
+                  {s.exchange && <Badge>{s.exchange}</Badge>}
+                  {SP500_TICKERS.has(s.ticker) && <Badge>S&amp;P 500</Badge>}
+                  {!s.exchange && !SP500_TICKERS.has(s.ticker) && "—"}
+                </span>
+              </td>
+              <td className="py-2 font-body max-w-[14rem] truncate" title={s.group ? `${s.group.name}: ranked ${s.group.rank} of ${s.group.total}` : ""}>
+                {s.group ? (
+                  <>
+                    <span className={`font-mono mr-1.5 ${s.group.rank <= LEADING_GROUP_RANKS ? "text-gold-bright" : "text-parchment-faint"}`}>
+                      #{s.group.rank}
+                    </span>
+                    {s.group.name}
+                  </>
+                ) : (
+                  "—"
+                )}
               </td>
               <td className="py-2 text-right text-parchment">${s.price.toFixed(2)}</td>
               <td className={`py-2 text-right ${s.rsRating >= 90 ? "text-gain-bright" : "text-parchment"}`}>{s.rsRating}</td>

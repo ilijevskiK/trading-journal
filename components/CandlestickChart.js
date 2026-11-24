@@ -18,6 +18,7 @@ import {
 } from "@/lib/indicatorMath";
 import { computeSmcStructure } from "@/lib/smc";
 import { OrderBlockPrimitive } from "@/lib/orderBlockPrimitive";
+import { ratingPointsForCandles } from "@/lib/rsRatingSeries";
 
 const COLORS = {
   bg: "#1B1F27", // surface
@@ -50,6 +51,8 @@ const ZOOM_OUT_FACTOR = 1 / ZOOM_IN_FACTOR;
 
 const WAVETREND_PANE = 1;
 const RSI_PANE = 2;
+const RS_RATING_PANE = 3;
+const RS_RATING_MIN = 80; // O'Neil buys leaders at 80+
 
 // Toggleable EMA overlays, offered only where enableIndicators is set
 // (the fullscreen view). Colors are chosen to stay distinguishable from
@@ -71,6 +74,7 @@ export const INDICATOR_DEFINITIONS = [
   { key: "smc", label: "SMC", fullLabel: "Smart Money Concepts", color: "#A78BFA" },
   { key: "bollingerBands", label: "Bollinger Bands", color: "#60A5FA" },
   { key: "rsi", label: "RSI", color: "#FACC15" },
+  { key: "rsRating", label: "RS Rating", color: "#3987E5" },
 ];
 
 const SMC_BULL_OB_COLOR = "#3179f5"; // matches the original LuxAlgo bullish OB color
@@ -84,6 +88,7 @@ const NO_SMA_LINES = [];
 const NO_EXTRA_MARKERS = [];
 const NO_STATUS_BAND = [];
 const NO_PRICE_LINES = [];
+const NO_RS_HISTORY = [];
 
 function computeSMA(candles, period) {
   const values = sma(candles.map((c) => c.close), period);
@@ -164,6 +169,9 @@ export default function CandlestickChart({
   statusBand = NO_STATUS_BAND,
   // Extra horizontal levels: [{ price, color, title, dashed }].
   extraPriceLines = NO_PRICE_LINES,
+  // Daily RS Rating history [{ asOf, rating }], drawn in its own pane when
+  // the "rsRating" indicator is on.
+  rsRatingHistory = NO_RS_HISTORY,
 }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
@@ -179,6 +187,7 @@ export default function CandlestickChart({
   const waveTrendCrossColorByTimeRef = useRef(new Map());
   const bollingerSeriesRef = useRef({});
   const rsiSeriesRef = useRef({});
+  const rsRatingSeriesRef = useRef({});
   const orderBlockPrimitiveRef = useRef(null);
   const smcStructureRef = useRef({ breaks: [], orderBlocks: [] });
   const hasFitInitialContentRef = useRef(false);
@@ -322,9 +331,27 @@ export default function CandlestickChart({
         line: chart.addSeries(LineSeries, rsiOpts("#FACC15"), RSI_PANE),
       };
 
+      // RS Rating (1-99): its own pane on a fixed 0-100 scale, with a
+      // reference line at O'Neil's 80 minimum.
+      const rsRatingOpts = (color, dashed = false) => ({
+        color,
+        lineWidth: dashed ? 1 : 2,
+        lineStyle: dashed ? LineStyle.Dashed : LineStyle.Solid,
+        priceLineVisible: false,
+        lastValueVisible: !dashed,
+        crosshairMarkerVisible: !dashed,
+        autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+        visible: false,
+      });
+      rsRatingSeriesRef.current = {
+        minimum: chart.addSeries(LineSeries, rsRatingOpts(COLORS.gainBright, true), RS_RATING_PANE),
+        line: chart.addSeries(LineSeries, rsRatingOpts("#3987E5"), RS_RATING_PANE),
+      };
+
       chart.panes()[0]?.setStretchFactor(6);
       chart.panes()[WAVETREND_PANE]?.setStretchFactor(0.0001);
       chart.panes()[RSI_PANE]?.setStretchFactor(0.0001);
+      chart.panes()[RS_RATING_PANE]?.setStretchFactor(0.0001);
     }
 
     chart.subscribeCrosshairMove((param) => {
@@ -354,6 +381,7 @@ export default function CandlestickChart({
       orderBlockPrimitiveRef.current = null;
       bollingerSeriesRef.current = {};
       rsiSeriesRef.current = {};
+      rsRatingSeriesRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -558,6 +586,15 @@ export default function CandlestickChart({
     extraPriceLines,
   ]);
 
+  // RS Rating line, lined up with whatever candles are showing.
+  useEffect(() => {
+    const { line, minimum } = rsRatingSeriesRef.current;
+    if (!line) return;
+    const points = ratingPointsForCandles(candles, rsRatingHistory);
+    line.setData(points);
+    minimum?.setData(points.map((p) => ({ time: p.time, value: RS_RATING_MIN })));
+  }, [candles, rsRatingHistory]);
+
   // Show/hide EMA lines as the user checks/unchecks them, without touching
   // the data (already set whenever candles change above).
   useEffect(() => {
@@ -583,6 +620,9 @@ export default function CandlestickChart({
     const rsiVisible = !!activeIndicators.rsi;
     Object.values(rsiSeriesRef.current).forEach((s) => s?.applyOptions({ visible: rsiVisible }));
 
+    const rsRatingVisible = !!activeIndicators.rsRating;
+    Object.values(rsRatingSeriesRef.current).forEach((s) => s?.applyOptions({ visible: rsRatingVisible }));
+
     // Setting all panes' stretch factors together in one pass, rather than
     // calling pane.setHeight() per pane: setHeight() on a later pane was
     // observed to silently reset an earlier pane's just-applied height back
@@ -592,6 +632,7 @@ export default function CandlestickChart({
     panes[0]?.setStretchFactor(6);
     panes[WAVETREND_PANE]?.setStretchFactor(wtVisible ? 2 : 0.0001);
     panes[RSI_PANE]?.setStretchFactor(rsiVisible ? 2 : 0.0001);
+    panes[RS_RATING_PANE]?.setStretchFactor(rsRatingVisible ? 2 : 0.0001);
 
     updateOrderBlockBoxes(activeIndicators.smc);
     // SMC markers are merged into the main markers set above and react to

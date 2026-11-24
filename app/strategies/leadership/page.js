@@ -5,6 +5,7 @@ import Link from "next/link";
 import StockLetterPage from "@/components/canslim/StockLetterPage";
 import LetterSection from "@/components/canslim/LetterSection";
 import RsLineChart from "@/components/RsLineChart";
+import RsRatingChart from "@/components/RsRatingChart";
 import { LETTER_LINKS } from "@/components/canslim/letterLinks";
 import { useTrades } from "@/contexts/TradesContext";
 import { useWatchlistCandles } from "@/hooks/useWatchlistCandles";
@@ -84,6 +85,7 @@ function Leadership({ ticker }) {
       result={result}
     >
       <RsRatingCard rs={rs} ticker={ticker} />
+      {rs.data && !rs.data.notRanked && <RsRatingChart history={rs.data.history} />}
       {result.stats && (
         <>
           <ReturnsTable stats={result.stats} ticker={ticker} />

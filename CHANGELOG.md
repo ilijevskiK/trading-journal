@@ -4,6 +4,42 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- **Composite Screener** — a new tile in the CAN SLIM hub: one 1-99
+  rating per US stock, in the spirit of IBD's SmartSelect Composite Rating.
+  It blends the EPS Rating and RS Rating (each counted double) with the
+  industry group, SMR (sales growth, margin, return on equity),
+  accumulation/distribution and distance from the 52-week high, then ranks
+  the result against every stock. Searchable and sortable, with A-E grades
+  and a "How the Composite Rating is calculated" section on the page. EPS
+  and SMR come from each company's SEC filings, read by
+  `scripts/run-fundamentals.mjs` (a first full run downloads about 5,000
+  filings, 45 minutes or more; afterwards a slice is refreshed daily).
+  Needs `db/0011_composite.sql` and `db/0012_fundamentals.sql`.
+- **Leading Groups** — a new CAN SLIM tile ranking about 200 industry
+  groups by the median RS score of their stocks, with 1-week and 3-month
+  rank changes, each group's strongest stocks, multi-select sector tiles
+  and an explanation of the method. Companies are placed in groups by an
+  AI-assisted, one-off classification (`lib/industryTaxonomy.js`), not
+  checked company by company; new listings stay ungrouped until the
+  classification is refreshed (see the README). Falls back to SEC SIC-code
+  groups until a classification is loaded. Needs `db/0009_industries.sql`
+  and `db/0010_stock_groups.sql`.
+- **Screener: industry group and filters** — each stock shows its group and
+  the group's rank, with "Top 40 groups" and "S&P 500 only" filters next to
+  "New only".
+- **Warrants and preferred shares are no longer rated** — they traded under
+  the company's ticker plus a suffix and were counted as stocks in the RS
+  Ratings. They are now dropped when the ticker and its base ticker belong
+  to the same company.
+- **Removed the S&P 500 tile** from the landing page. The pages still
+  exist by URL, and the S&P 500 list still feeds the Screener's badge.
+
+- **RS Rating history** — the Leadership page now charts a stock's RS Rating
+  over the last 12 months, with a line at 80. RS Ratings are kept for 400
+  days instead of 60. A one-time `npm run rs-backfill` downloads the extra
+  year of prices and rebuilds the past ratings (about an hour at Massive's
+  free 5 requests a minute); after that the daily job keeps adding to it.
+
 - **CAN SLIM Screener** — a new first tile in the CAN SLIM hub. Every
   trading day, every US company is run through the price checks: $15+,
   at least $10M traded a day, RS Rating 80+ and within 15% of its 52-week

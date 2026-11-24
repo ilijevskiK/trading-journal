@@ -86,6 +86,39 @@ It can also be run locally with the same three variables set:
 `npm run screener`. GitHub pauses scheduled workflows in repositories
 with no activity for 60 days; re-enable it from the Actions tab if so.
 
+### Industry groups, fundamentals and the Composite Screener
+
+Three more jobs build on the screener's RS Ratings. They run after it in
+the same GitHub workflow, and each can be run locally (they load
+`.env.local`):
+
+1. Run `db/0009_industries.sql`, `db/0010_stock_groups.sql`,
+   `db/0011_composite.sql` and `db/0012_fundamentals.sql` once.
+2. `npm run industries` reads each company's SEC SIC code and ranks the
+   industry groups for every stored day (`--rerank` ranks all days again).
+   Needs `DATABASE_URL` and `SEC_USER_AGENT`.
+3. `npm run fundamentals` reads each company's SEC filings for the EPS
+   Rating and SMR (`--limit N` caps one run). The first full run downloads
+   about 5,000 filings and takes 45 minutes or more; afterwards a company
+   is re-read when its summary is 21 days old, and the workflow reads up to
+   600 a day. Run the first full load locally.
+4. `npm run composite` builds the day's Composite Ratings. Needs
+   `MASSIVE_API_KEY` too (for stock splits).
+
+**Industry groups.** The groups in `lib/industryTaxonomy.js` are the app's
+own. Each company was put into one of them by an AI model from its name and
+SEC industry description, in a one-off pass, and loaded into the
+`stock_groups` table. Until any rows are loaded, groups fall back to the
+SIC-code tables in `lib/industries.js`. New listings have no group (so they
+don't count in the ranking) until you refresh. About once a month:
+
+1. `node --env-file=.env.local scripts/export-companies.mjs <file>` writes
+   the companies that have no group yet.
+2. Classify them into the taxonomy's group names (or `Unclassified` for
+   funds, SPACs and preferred shares) as JSON, `{ "TICKER": "Group name" }`.
+3. `node --env-file=.env.local scripts/load-groups.mjs <json> [--dry-run]`
+   checks the names and loads them, then `npm run industries -- --rerank`.
+
 ## Data model
 
 Trades/exits/deposits/settings live in Postgres (`db/0002_app_tables.sql`
