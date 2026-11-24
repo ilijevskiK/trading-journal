@@ -1,9 +1,15 @@
-# Daily CAN SLIM screener (scripts/run-screener.mjs). Runs after midnight
+# Daily CAN SLIM screener (scripts/run-screener.mjs), then the industry
+# group ranking (scripts/run-industries.mjs), a slice of SEC fundamentals
+# (scripts/run-fundamentals.mjs) and the Composite Ratings
+# (scripts/run-composite.mjs), which need the day's RS Ratings and so run
+# after it. Runs after midnight
 # New York time, Tuesday to Saturday, once the previous session's prices
 # are out on Massive's free plan. Run it by hand from the Actions tab for
 # the first, hour-long backfill.
 #
 # Needs repository secrets DATABASE_URL, MASSIVE_API_KEY and SEC_USER_AGENT.
+# The first run of the industries step asks the SEC about every company
+# (about half an hour); after that only new tickers.
 name: CAN SLIM screener
 
 on:
@@ -23,6 +29,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run screener
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/run-industries.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/run-fundamentals.mjs --limit 600
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/run-composite.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}

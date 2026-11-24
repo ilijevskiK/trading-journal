@@ -81,15 +81,6 @@ export function BreakdownsIcon(props) {
   );
 }
 
-export function Sp500Icon(props) {
-  return (
-    <Icon {...props}>
-      <rect x="4" y="4" width="16" height="16" rx="1.5" />
-      <path d="M7 15 L7 17 M11 12 L11 17 M15 9 L15 17" />
-    </Icon>
-  );
-}
-
 export function VideosIcon(props) {
   return (
     <Icon {...props}>
@@ -179,6 +170,24 @@ export function SettingsIcon(props) {
     <Icon {...props}>
       <circle cx="12" cy="12" r="3" />
       <path d="M12 3.5 L12 6 M12 18 L12 20.5 M3.5 12 L6 12 M18 12 L20.5 12 M6.1 6.1 L7.8 7.8 M16.2 16.2 L17.9 17.9 M6.1 17.9 L7.8 16.2 M16.2 7.8 L17.9 6.1" />
+    </Icon>
+  );
+}
+
+export function GroupsIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20 L4 15 M9 20 L9 11 M14 20 L14 7 M19 20 L19 4" />
+      <path d="M3 7.5 L7 5 L10 6.5 L16 3" />
+    </Icon>
+  );
+}
+
+export function CompositeIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3.5 L20 8 L20 16 L12 20.5 L4 16 L4 8 Z" />
+      <path d="M12 8.5 L12 15.5 M8.5 10.5 L15.5 13.5 M15.5 10.5 L8.5 13.5" />
     </Icon>
   );
 }

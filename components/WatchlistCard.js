@@ -91,6 +91,7 @@ export default function WatchlistCard({ ticker, apiKey, finnhubApiKey, onRemove 
       {fullscreen && (
         <FullscreenChart
           title={ticker}
+          rsTicker={ticker}
           trade={trade}
           candles={fullscreenDisplayCandles}
           loading={fullscreenQuery.loading}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CandlestickChart, {
   EMA_DEFINITIONS,
   INDICATOR_DEFINITIONS,
@@ -8,9 +8,11 @@ import CandlestickChart, {
 } from "@/components/CandlestickChart";
 import ChartModal from "@/components/ChartModal";
 import { TIMEFRAMES } from "@/lib/timeframes";
+import { getRsRatingAction } from "@/contexts/rsActions";
 
 const TOP_EMA_KEYS = ["ema5", "ema10", "ema30", "ema50", "ema200"];
 const TOP_INDICATOR_KEYS = ["bollingerBands", "rsi"];
+const RS_RATING_KEY = "rsRating"; // offered only when the caller passes `rsTicker`
 const LEFT_INDICATOR_KEYS = ["waveTrend", "smc"];
 
 const DEFAULT_ACTIVE_EMAS = {};
@@ -61,12 +63,36 @@ export default function FullscreenChart({
   extraMarkers,
   statusBand,
   extraPriceLines,
+  // US stock symbol to chart the RS Rating history for (a toggle in the top
+  // group). Leave out for indexes and anything that isn't ranked.
+  rsTicker,
 }) {
   const [activeEmas, setActiveEmas] = useState(
     () => loadStoredToggles()?.emas ?? DEFAULT_ACTIVE_EMAS
   );
   const [activeIndicators, setActiveIndicators] = useState(
     () => loadStoredToggles()?.indicators ?? DEFAULT_ACTIVE_INDICATORS
+  );
+
+  const [rsHistory, setRsHistory] = useState([]);
+  useEffect(() => {
+    if (!rsTicker) return;
+    let cancelled = false;
+    getRsRatingAction(rsTicker)
+      .then((res) => !cancelled && setRsHistory(res.history ?? []))
+      .catch(() => {}); // the toggle just shows an empty pane without it
+    return () => {
+      cancelled = true;
+    };
+  }, [rsTicker]);
+  // The toggle is remembered across charts; hide it where it isn't offered.
+  const shownIndicators = useMemo(
+    () => (rsTicker ? activeIndicators : { ...activeIndicators, [RS_RATING_KEY]: false }),
+    [rsTicker, activeIndicators]
+  );
+  const topIndicatorKeys = useMemo(
+    () => (rsTicker ? [...TOP_INDICATOR_KEYS, RS_RATING_KEY] : TOP_INDICATOR_KEYS),
+    [rsTicker]
   );
 
   useEffect(() => {
@@ -129,7 +155,7 @@ export default function FullscreenChart({
           <GroupLabel>Default Indicators</GroupLabel>
           <div className="flex flex-wrap justify-center gap-3">
             {TOP_EMA_KEYS.map(emaChip)}
-            {TOP_INDICATOR_KEYS.map(indicatorChip)}
+            {topIndicatorKeys.map(indicatorChip)}
           </div>
         </div>
         <div className="flex-1 flex gap-4 min-h-0">
@@ -151,13 +177,14 @@ export default function FullscreenChart({
               extraMarkers={extraMarkers}
               statusBand={statusBand}
               extraPriceLines={extraPriceLines}
+              rsRatingHistory={rsHistory}
               fillHeight
               alwaysShowControls
               enableIndicators
               hideToggleOverlay
               activeEmas={activeEmas}
               onToggleEma={toggleEma}
-              activeIndicators={activeIndicators}
+              activeIndicators={shownIndicators}
               onToggleIndicator={toggleIndicator}
             />
           </div>

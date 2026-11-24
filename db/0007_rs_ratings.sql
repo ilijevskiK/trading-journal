@@ -1,7 +1,7 @@
 -- CAN SLIM RS Ratings: every US-listed company ranked 1-99 on weighted
 -- 12-month price performance, computed once per trading day (see
 -- contexts/rsActions.js). Shared by all users, since it's market data.
--- Only the last 60 days of runs are kept. Run once; needs nothing earlier.
+-- Only the last 400 days of runs are kept (a year for the rating chart). Run once; needs nothing earlier.
 
 CREATE TABLE rs_runs
 (

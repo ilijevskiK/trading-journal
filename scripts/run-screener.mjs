@@ -9,74 +9,43 @@
 // Needs DATABASE_URL, MASSIVE_API_KEY and SEC_USER_AGENT.
 
 import pg from "pg";
-import { fetchGroupedBars, fetchSplits, isWeekend, latestRequestableDate, previousDay } from "../lib/massiveData.js";
-import { fetchSecCompanyNames } from "../lib/secEdgar.js";
+import { fetchSplits, latestRequestableDate } from "../lib/massiveData.js";
+import { fetchSecCompanyNames, fetchSecExchanges } from "../lib/secEdgar.js";
 import { historyIsComplete, rankStocks, screenStocks } from "../lib/screener.js";
-import { getStoredDates, loadPriceDays, prunePriceDays, savePriceDay, saveScreenerRun } from "../lib/screenerDb.js";
+import { loadPriceDays, prunePriceDays, saveScreenerRun } from "../lib/screenerDb.js";
 import { saveRun, withRankingLock } from "../lib/rsRatingsDb.js";
 import { splitsByTicker } from "../lib/priceHistory.js";
+import { daysBefore, downloadMissingDays, log, requireEnv, withRetryOnRateLimit } from "../lib/screenerJob.js";
 
 const KEEP_CALENDAR_DAYS = 380; // a year of sessions plus room to step back over holidays
 const LOCK_RETRIES = 10;
 
 pg.types.setTypeParser(1082, (val) => val); // DATE as 'YYYY-MM-DD', like lib/db.js
 
-function log(message) {
-  console.log(`[${new Date().toISOString().slice(11, 19)}] ${message}`);
-}
-
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} isn't set.`);
-  return value;
-}
-
-function weekdaysBetween(oldest, latest) {
-  const dates = [];
-  for (let d = latest; d >= oldest; d = previousDay(d)) if (!isWeekend(d)) dates.push(d);
-  return dates; // newest first, so an interrupted backfill still has recent days
-}
-
-async function withRetryOnRateLimit(fn) {
-  try {
-    return await fn();
-  } catch (e) {
-    if (e.status !== 429) throw e;
-    log("Rate limited; waiting a minute.");
-    await new Promise((r) => setTimeout(r, 61_000));
-    return fn();
-  }
-}
-
-async function downloadMissingDays(pool, universe, oldest, latest, apiKey) {
-  const stored = await getStoredDates(pool);
-  const missing = weekdaysBetween(oldest, latest).filter((d) => !stored.has(d));
-  if (!missing.length) return log("Price history is up to date.");
-  log(`Downloading ${missing.length} day(s), about ${Math.ceil(missing.length / 5)} min.`);
-  for (const [i, date] of missing.entries()) {
-    const bars = await withRetryOnRateLimit(() => fetchGroupedBars(date, apiKey, { adjusted: false }));
-    if (bars === null) {
-      log(`${date}: not available yet, skipped.`);
-      continue;
-    }
-    await savePriceDay(pool, date, bars.filter((b) => universe.has(b.T)));
-    log(`${date}: ${bars.length ? `${bars.length} bars` : "market closed"} (${i + 1}/${missing.length})`);
-  }
-}
-
 async function main() {
   const databaseUrl = requireEnv("DATABASE_URL");
   const apiKey = requireEnv("MASSIVE_API_KEY");
   const userAgent = requireEnv("SEC_USER_AGENT");
-  const pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
+  const pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false },
+    keepAlive: true, // long downloads leave connections idle; keep them from being dropped
+    keepAliveInitialDelayMillis: 10_000,
+  });
+  pool.on("error", (e) => log(`Database connection error: ${e.message}`));
 
   try {
     const names = await fetchSecCompanyNames(userAgent);
     const universe = new Set(names.keys());
     log(`${universe.size} companies in the SEC's list.`);
+    // Which exchange each trades on is a nice-to-have: without it the screen still runs.
+    let exchanges = new Map();
+    try {
+      exchanges = await fetchSecExchanges(userAgent);
+    } catch (e) {
+      log(`Couldn't load the exchange list (${e.message}); the screen will have no exchanges.`);
+    }
 
     const latest = latestRequestableDate();
-    const oldest = new Date(Date.parse(`${latest}T00:00:00Z`) - KEEP_CALENDAR_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const oldest = daysBefore(latest, KEEP_CALENDAR_DAYS);
 
     // The Leadership page ranks on demand when no fresh run exists; the
     // lock keeps it from downloading at the same time (and sharing the
@@ -100,7 +69,7 @@ async function main() {
         await saveRun(client, asOf, ratings);
         log(`RS Ratings saved for ${ratings.length} stocks.`);
 
-        const screen = screenStocks({ days, splits, universe, ratings, names });
+        const screen = screenStocks({ days, splits, universe, ratings, names, exchanges });
         await saveScreenerRun(client, asOf, screen);
         log(`Screener: ${JSON.stringify(screen.funnel)}.`);
       });
